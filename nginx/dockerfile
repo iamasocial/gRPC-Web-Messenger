@@ -1,0 +1,11 @@
+# Используем официальный образ NGINX
+FROM nginx:alpine
+
+# Копируем конфигурацию NGINX в контейнер
+COPY nginx.conf /etc/nginx/nginx.conf
+
+# Открываем порты для HTTP
+EXPOSE 8080
+
+# Запускаем NGINX
+CMD ["nginx", "-g", "daemon off;"]

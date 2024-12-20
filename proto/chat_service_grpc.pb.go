@@ -19,12 +19,7 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ChatService_CreateChat_FullMethodName  = "/messenger.ChatService/CreateChat"
-	ChatService_InviteUser_FullMethodName  = "/messenger.ChatService/InviteUser"
-	ChatService_SendMessage_FullMethodName = "/messenger.ChatService/SendMessage"
-	ChatService_GetMessages_FullMethodName = "/messenger.ChatService/GetMessages"
-	ChatService_QuitChat_FullMethodName    = "/messenger.ChatService/QuitChat"
-	ChatService_DeleteChat_FullMethodName  = "/messenger.ChatService/DeleteChat"
+	ChatService_CreateChat_FullMethodName = "/messenger.ChatService/CreateChat"
 )
 
 // ChatServiceClient is the client API for ChatService service.
@@ -32,11 +27,6 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ChatServiceClient interface {
 	CreateChat(ctx context.Context, in *CreateChatRequest, opts ...grpc.CallOption) (*CreateChatResponse, error)
-	InviteUser(ctx context.Context, in *InviteRequest, opts ...grpc.CallOption) (*InviteResponse, error)
-	SendMessage(ctx context.Context, in *SendMessageRequest, opts ...grpc.CallOption) (*SendMessageResponse, error)
-	GetMessages(ctx context.Context, in *GetMessagesRequest, opts ...grpc.CallOption) (*GetMessagesResponse, error)
-	QuitChat(ctx context.Context, in *QuitChatRequest, opts ...grpc.CallOption) (*QuitChatResponse, error)
-	DeleteChat(ctx context.Context, in *DeleteChatRequest, opts ...grpc.CallOption) (*DeleteChatResponse, error)
 }
 
 type chatServiceClient struct {
@@ -57,66 +47,11 @@ func (c *chatServiceClient) CreateChat(ctx context.Context, in *CreateChatReques
 	return out, nil
 }
 
-func (c *chatServiceClient) InviteUser(ctx context.Context, in *InviteRequest, opts ...grpc.CallOption) (*InviteResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(InviteResponse)
-	err := c.cc.Invoke(ctx, ChatService_InviteUser_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *chatServiceClient) SendMessage(ctx context.Context, in *SendMessageRequest, opts ...grpc.CallOption) (*SendMessageResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(SendMessageResponse)
-	err := c.cc.Invoke(ctx, ChatService_SendMessage_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *chatServiceClient) GetMessages(ctx context.Context, in *GetMessagesRequest, opts ...grpc.CallOption) (*GetMessagesResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetMessagesResponse)
-	err := c.cc.Invoke(ctx, ChatService_GetMessages_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *chatServiceClient) QuitChat(ctx context.Context, in *QuitChatRequest, opts ...grpc.CallOption) (*QuitChatResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(QuitChatResponse)
-	err := c.cc.Invoke(ctx, ChatService_QuitChat_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *chatServiceClient) DeleteChat(ctx context.Context, in *DeleteChatRequest, opts ...grpc.CallOption) (*DeleteChatResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(DeleteChatResponse)
-	err := c.cc.Invoke(ctx, ChatService_DeleteChat_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // ChatServiceServer is the server API for ChatService service.
 // All implementations must embed UnimplementedChatServiceServer
 // for forward compatibility.
 type ChatServiceServer interface {
 	CreateChat(context.Context, *CreateChatRequest) (*CreateChatResponse, error)
-	InviteUser(context.Context, *InviteRequest) (*InviteResponse, error)
-	SendMessage(context.Context, *SendMessageRequest) (*SendMessageResponse, error)
-	GetMessages(context.Context, *GetMessagesRequest) (*GetMessagesResponse, error)
-	QuitChat(context.Context, *QuitChatRequest) (*QuitChatResponse, error)
-	DeleteChat(context.Context, *DeleteChatRequest) (*DeleteChatResponse, error)
 	mustEmbedUnimplementedChatServiceServer()
 }
 
@@ -129,21 +64,6 @@ type UnimplementedChatServiceServer struct{}
 
 func (UnimplementedChatServiceServer) CreateChat(context.Context, *CreateChatRequest) (*CreateChatResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateChat not implemented")
-}
-func (UnimplementedChatServiceServer) InviteUser(context.Context, *InviteRequest) (*InviteResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method InviteUser not implemented")
-}
-func (UnimplementedChatServiceServer) SendMessage(context.Context, *SendMessageRequest) (*SendMessageResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SendMessage not implemented")
-}
-func (UnimplementedChatServiceServer) GetMessages(context.Context, *GetMessagesRequest) (*GetMessagesResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetMessages not implemented")
-}
-func (UnimplementedChatServiceServer) QuitChat(context.Context, *QuitChatRequest) (*QuitChatResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method QuitChat not implemented")
-}
-func (UnimplementedChatServiceServer) DeleteChat(context.Context, *DeleteChatRequest) (*DeleteChatResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DeleteChat not implemented")
 }
 func (UnimplementedChatServiceServer) mustEmbedUnimplementedChatServiceServer() {}
 func (UnimplementedChatServiceServer) testEmbeddedByValue()                     {}
@@ -184,96 +104,6 @@ func _ChatService_CreateChat_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ChatService_InviteUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(InviteRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ChatServiceServer).InviteUser(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ChatService_InviteUser_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ChatServiceServer).InviteUser(ctx, req.(*InviteRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ChatService_SendMessage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SendMessageRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ChatServiceServer).SendMessage(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ChatService_SendMessage_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ChatServiceServer).SendMessage(ctx, req.(*SendMessageRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ChatService_GetMessages_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetMessagesRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ChatServiceServer).GetMessages(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ChatService_GetMessages_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ChatServiceServer).GetMessages(ctx, req.(*GetMessagesRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ChatService_QuitChat_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(QuitChatRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ChatServiceServer).QuitChat(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ChatService_QuitChat_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ChatServiceServer).QuitChat(ctx, req.(*QuitChatRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ChatService_DeleteChat_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteChatRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ChatServiceServer).DeleteChat(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ChatService_DeleteChat_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ChatServiceServer).DeleteChat(ctx, req.(*DeleteChatRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // ChatService_ServiceDesc is the grpc.ServiceDesc for ChatService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -284,26 +114,6 @@ var ChatService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateChat",
 			Handler:    _ChatService_CreateChat_Handler,
-		},
-		{
-			MethodName: "InviteUser",
-			Handler:    _ChatService_InviteUser_Handler,
-		},
-		{
-			MethodName: "SendMessage",
-			Handler:    _ChatService_SendMessage_Handler,
-		},
-		{
-			MethodName: "GetMessages",
-			Handler:    _ChatService_GetMessages_Handler,
-		},
-		{
-			MethodName: "QuitChat",
-			Handler:    _ChatService_QuitChat_Handler,
-		},
-		{
-			MethodName: "DeleteChat",
-			Handler:    _ChatService_DeleteChat_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

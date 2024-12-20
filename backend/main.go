@@ -23,11 +23,12 @@ func main() {
 
 	userRepo := repository.NewUserRepo(db)
 	tokenRepo := repository.NewTokenRepository(db)
+	chatRepo := repository.NewChatRepository(db)
 	userService := service.NewUserService(userRepo, tokenRepo)
+	chatService := service.NewChatService(chatRepo, userRepo)
 	srv := server.NewServer(tokenRepo)
 
 	// userService := service.NewUserService()
-	chatService := service.NewChatService()
 	srv.RegisterServices(userService, chatService)
 
 	if err := srv.Start(":50051"); err != nil {

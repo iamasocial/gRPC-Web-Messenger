@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"log"
 	"messenger/backend/entities"
 	"messenger/backend/middleware"
 	"messenger/backend/repository"
@@ -22,12 +21,11 @@ import (
 
 type UserService struct {
 	pb.UnimplementedUserServiceServer
-	repo      repository.UserRepository
-	tokenRepo repository.TokenRepository
+	repo repository.UserRepository
 }
 
-func NewUserService(repo repository.UserRepository, tokenRepo repository.TokenRepository) *UserService {
-	return &UserService{repo: repo, tokenRepo: tokenRepo}
+func NewUserService(repo repository.UserRepository) *UserService {
+	return &UserService{repo: repo}
 }
 
 func (us *UserService) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.RegisterResponse, error) {
@@ -49,7 +47,6 @@ func (us *UserService) Register(ctx context.Context, req *pb.RegisterRequest) (*
 		return nil, errors.New("password must match")
 	}
 
-	// passwordHash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	passwordHash, err := utils.HashPassword(req.Password)
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash password: %v", err)
@@ -70,31 +67,10 @@ func (us *UserService) Register(ctx context.Context, req *pb.RegisterRequest) (*
 		return nil, status.Errorf(codes.Internal, "failed to generate token: %v", err)
 	}
 
-	err = us.tokenRepo.SaveToken(ctx, token)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to save token: %v", err)
-	}
-
 	return &pb.RegisterResponse{
-		Token: token.Token,
+		Token: token,
 	}, nil
 }
-
-// func (us *UserService) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginResponse, error) {
-// 	user, err := us.repo.GetByUsername(ctx, req.Username)
-// 	if err != nil || user == nil {
-// 		return nil, errors.New("invalid username or password")
-// 	}
-
-// 	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password))
-// 	if err != nil {
-// 		return nil, errors.New("invalid username or password")
-// 	}
-
-// 	return &pb.LoginResponse{
-// 		UserId: user.ID,
-// 	}, nil
-// }
 
 func (us *UserService) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginResponse, error) {
 	user, err := us.repo.GetByUsername(ctx, req.Username)
@@ -104,11 +80,6 @@ func (us *UserService) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Log
 
 	if user == nil {
 		return nil, errors.New("user not found")
-	}
-
-	existingToken, err := us.tokenRepo.GetActiveToken(ctx, user.ID)
-	if err == nil && existingToken != nil {
-		return nil, errors.New("user is already logged in")
 	}
 
 	parts := strings.Split(user.PasswordHash, ":")
@@ -130,34 +101,14 @@ func (us *UserService) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Log
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate token: %v", err)
 	}
-	log.Println("token generated succussfully")
 
-	err = us.tokenRepo.SaveToken(ctx, token)
-	if err != nil {
-		return nil, fmt.Errorf("failed to save token: %v", err)
-	}
-
-	return &pb.LoginResponse{Token: token.Token}, nil
+	return &pb.LoginResponse{Token: token}, nil
 }
 
 func (us *UserService) Logout(ctx context.Context, req *pb.LogoutRequest) (*pb.LogoutResponse, error) {
-	tokenString, ok := ctx.Value(middleware.TokenKey("token")).(string)
-	if !ok || tokenString == "" {
-		return nil, status.Errorf(codes.Unauthenticated, "Token is missing in context")
-	}
-
-	token, err := us.tokenRepo.GetByToken(ctx, tokenString)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find token: %v", err)
-	}
-
-	if token == nil {
-		return nil, errors.New("token not found")
-	}
-
-	err = us.tokenRepo.DeleteToken(ctx, token.Token)
-	if err != nil {
-		return nil, fmt.Errorf("failed to delete token: %v", err)
+	_, ok := ctx.Value(middleware.TokenKey("user_id")).(uint64)
+	if !ok {
+		return nil, status.Errorf(codes.Unauthenticated, "User ID is missing in context")
 	}
 
 	return &pb.LogoutResponse{

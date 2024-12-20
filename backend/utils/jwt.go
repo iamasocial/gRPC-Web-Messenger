@@ -2,7 +2,6 @@ package utils
 
 import (
 	"errors"
-	"messenger/backend/entities"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
@@ -15,14 +14,14 @@ type Claims struct {
 	jwt.StandardClaims
 }
 
-func GenerateToken(userID uint64) (*entities.Token, error) {
+func GenerateToken(userId uint64) (string, error) {
 	expirationTime := time.Now().Add(1 * time.Hour)
 
 	claims := &Claims{
-		UserId: userID,
+		UserId: userId,
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: expirationTime.Unix(),
-			Issuer:    "messenger",
+			IssuedAt:  time.Now().Unix(),
 		},
 	}
 
@@ -30,14 +29,10 @@ func GenerateToken(userID uint64) (*entities.Token, error) {
 
 	tokenString, err := token.SignedString(jwtSecret)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
-	return &entities.Token{
-		UserID:    userID,
-		Token:     tokenString,
-		ExpiresAt: expirationTime,
-	}, nil
+	return tokenString, err
 }
 
 func ValidateToken(tokenStr string) (*Claims, error) {

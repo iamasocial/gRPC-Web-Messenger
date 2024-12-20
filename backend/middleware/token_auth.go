@@ -3,7 +3,7 @@ package middleware
 import (
 	"context"
 	"errors"
-	"messenger/backend/repository"
+	"messenger/backend/utils"
 	"strings"
 
 	"google.golang.org/grpc"
@@ -12,28 +12,22 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// type UserIdKey string
 type TokenKey string
 
-type AuthInterceptor struct {
-	tokenRepo repository.TokenRepository
-}
+type AuthInterceptor struct{}
 
-func NewAuthInterceptor(tr repository.TokenRepository) *AuthInterceptor {
-	return &AuthInterceptor{tokenRepo: tr}
+func NewAuthInterceptor() *AuthInterceptor {
+	return &AuthInterceptor{}
 }
 
 func (a *AuthInterceptor) UnaryInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 		if info.FullMethod == "/messenger.UserService/Login" || info.FullMethod == "/messenger.UserService/Register" {
-			tokenString, err := extractToken(ctx)
-			if err == nil && tokenString != "" {
-				tokenEntity, err := a.tokenRepo.GetByToken(ctx, tokenString)
-				if err == nil && tokenEntity != nil {
-					activeToken, err := a.tokenRepo.GetActiveToken(ctx, tokenEntity.UserID)
-					if err == nil && activeToken != nil {
-						return nil, status.Errorf(codes.FailedPrecondition, "user is already logged in")
-					}
+			token, err := extractToken(ctx)
+			if err == nil && token != "" {
+				_, err := utils.ValidateToken(token)
+				if err == nil {
+					return nil, status.Errorf(codes.FailedPrecondition, "user is already logged in")
 				}
 			}
 			return handler(ctx, req)
@@ -44,12 +38,12 @@ func (a *AuthInterceptor) UnaryInterceptor() grpc.UnaryServerInterceptor {
 			return nil, status.Errorf(codes.Unauthenticated, "unathorized: %v", err)
 		}
 
-		tokenEntity, err := a.tokenRepo.GetByToken(ctx, token)
-		if err != nil || token == "" {
+		claims, err := utils.ValidateToken(token)
+		if err != nil {
 			return nil, status.Errorf(codes.Unauthenticated, "invalid token: %v", err)
 		}
 
-		ctx = context.WithValue(ctx, TokenKey("token"), tokenEntity.Token)
+		ctx = context.WithValue(ctx, TokenKey("user_id"), claims.UserId)
 
 		return handler(ctx, req)
 	}
@@ -73,76 +67,3 @@ func extractToken(ctx context.Context) (string, error) {
 
 	return tokenParts[1], nil
 }
-
-// func AuthInterceptor(excludeMethods []string) grpc.UnaryServerInterceptor {
-// 	return func(
-// 		ctx context.Context,
-// 		req any,
-// 		info *grpc.UnaryServerInfo,
-// 		handler grpc.UnaryHandler,
-// 	) (resp any, err error) {
-// 		for _, method := range excludeMethods {
-// 			if info.FullMethod == method {
-// 				return handler(ctx, req)
-// 			}
-// 		}
-
-// 		md, ok := metadata.FromIncomingContext(ctx)
-// 		if !ok {
-// 			return nil, errors.New("missing metadata")
-// 		}
-
-// 		token := ""
-// 		if val := md["authorization"]; len(val) > 0 {
-// 			token = val[0]
-// 		}
-
-// 		if token == "" {
-// 			return nil, errors.New("missing token")
-// 		}
-
-// 		valid, err := utils.ValidateToken(token)
-// 		if err != nil {
-// 			return nil, fmt.Errorf("token validation failed: %w", err)
-// 		}
-
-// 		if valid != nil {
-// 			return nil, errors.New("invalid token")
-// 		}
-// 		// if token == "" || !utils.ValidateToken(token) {
-// 		// 	return nil, errors.New("invalid or missing token")
-// 		// }
-
-// 		return handler(ctx, req)
-// 	}
-// }
-
-// func TokenAuthMiddleware(
-// 	ctx context.Context,
-// 	req interface{},
-// 	info *grpc.UnaryServerInfo,
-// 	handler grpc.UnaryHandler,
-// ) (interface{}, error) {
-// 	md, ok := metadata.FromIncomingContext(ctx)
-// 	if !ok {
-// 		return nil, errors.New("missing metadata")
-// 	}
-
-// 	tokens := md.Get("authorization")
-// 	if len(tokens) == 0 {
-// 		return nil, errors.New("authorization token is required")
-// 	}
-
-// 	token := tokens[0]
-// 	if !strings.HasPrefix(token, "Bearer ") {
-// 		return nil, fmt.Errorf("invalid token format")
-// 	}
-// 	token = token[7:]
-
-// 	_, err := utils.ValidateToken(token)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("invalid token: %v", err)
-// 	}
-
-// 	return handler(ctx, req)
-// }

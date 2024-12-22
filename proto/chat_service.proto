@@ -8,8 +8,7 @@ service ChatService {
     rpc CreateChat(CreateChatRequest) returns (CreateChatResponse);
     rpc GetChats(GetChatsRequst) returns (GetChatsResponse);
     rpc DeleteChat(DeleteChatRequest) returns (DeleteChatResponse);
-    // SendMessage
-    // SendMessage
+    // rpc SendMessage(SendMessageRequest)
     // GetMessages stream
 }
 
@@ -18,19 +17,17 @@ message CreateChatRequest {
 }
 
 message CreateChatResponse {
-    uint64 chat_id = 1;
+    string username = 1;
 }
 
-message GetChatsRequst {
-    
-}
+message GetChatsRequst {}
 
 message GetChatsResponse {
-    repeated uint64 chat_ids = 1;
+    repeated string usernames = 1;
 }
 
 message DeleteChatRequest {
-    uint64 chat_id = 1;
+    string username = 1;
 }
 
 message DeleteChatResponse {

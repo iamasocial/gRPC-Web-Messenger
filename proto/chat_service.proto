@@ -6,7 +6,8 @@ option go_package = "./proto";
 
 service ChatService {
     rpc CreateChat(CreateChatRequest) returns (CreateChatResponse);
-    // DeleteChat
+    rpc GetChats(GetChatsRequst) returns (GetChatsResponse);
+    rpc DeleteChat(DeleteChatRequest) returns (DeleteChatResponse);
     // SendMessage
     // SendMessage
     // GetMessages stream
@@ -18,4 +19,20 @@ message CreateChatRequest {
 
 message CreateChatResponse {
     uint64 chat_id = 1;
+}
+
+message GetChatsRequst {
+    
+}
+
+message GetChatsResponse {
+    repeated uint64 chat_ids = 1;
+}
+
+message DeleteChatRequest {
+    uint64 chat_id = 1;
+}
+
+message DeleteChatResponse {
+    bool success = 1;
 }

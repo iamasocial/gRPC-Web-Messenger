@@ -1,0 +1,49 @@
+services:
+  app:
+    build:
+      context: ../
+      dockerfile: dockerfile
+    container_name: messenger-backend-container
+    ports:
+      - "50051:50051"
+    environment:
+      DATABASE_URL: postgres://admin:topsecret@db:5432/messenger_db
+      RABBITMQ_URL: amqp://admin:topsecret@rabbitmq:5672
+    depends_on:
+      - db
+      - rabbitmq
+    networks:
+      - app_network
+
+  db:
+    image: postgres:15-alpine3.20
+    container_name: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: topsecret
+      POSTGRES_DB: messenger_db
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - app_network
+  
+  rabbitmq:
+    image: rabbitmq:management-alpine
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: topsecret
+    networks:
+     - app_network
+
+networks:
+  app_network:
+    driver: bridge
+
+volumes:
+  pg_data:

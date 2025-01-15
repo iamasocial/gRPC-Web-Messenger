@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package messenger;
 
-option go_package = "./proto";
+option go_package = "./generated";
 
 service UserService {
   rpc Register(RegisterRequest) returns (RegisterResponse);

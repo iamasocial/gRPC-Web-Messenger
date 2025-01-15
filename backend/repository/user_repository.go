@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"messenger/backend/entities"
+	"gRPCWebServer/backend/entities"
 
 	"github.com/jmoiron/sqlx"
 )

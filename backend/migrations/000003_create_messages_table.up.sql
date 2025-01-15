@@ -1,0 +1,8 @@
+CREATE TABLE messages (
+    id SERIAL PRIMARY KEY,
+    chat_id BIGINT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+    sender_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    receiver_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    content TEXT NOT NULL,
+    timestamp TIMESTAMP NOT NULL
+)

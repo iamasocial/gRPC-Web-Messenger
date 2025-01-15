@@ -1,0 +1,7 @@
+CREATE TABLE chats (
+    id SERIAL PRIMARY KEY,
+    user_1_id INTEGER NOT NULL,
+    user_2_id INTEGER NOT NULL,
+    FOREIGN KEY (user_1_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_2_id) REFERENCES users(id) ON DELETE CASCADE
+)

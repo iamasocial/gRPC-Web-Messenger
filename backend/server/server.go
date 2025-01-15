@@ -2,9 +2,9 @@ package server
 
 import (
 	"fmt"
+	pb "gRPCWebServer/backend/generated"
+	"gRPCWebServer/backend/middleware"
 	"log"
-	"messenger/backend/middleware"
-	"messenger/proto"
 	"net"
 
 	"google.golang.org/grpc"
@@ -19,15 +19,16 @@ func NewServer() *Server {
 	authMiddleWare := middleware.NewAuthInterceptor()
 	grpcServer := grpc.NewServer(
 		grpc.UnaryInterceptor(authMiddleWare.UnaryInterceptor()),
+		grpc.StreamInterceptor(authMiddleWare.StreamInterceptor()),
 	)
 	return &Server{
 		grpcServer: grpcServer,
 	}
 }
 
-func (s *Server) RegisterServices(userService proto.UserServiceServer, chatService proto.ChatServiceServer) {
-	proto.RegisterUserServiceServer(s.grpcServer, userService)
-	proto.RegisterChatServiceServer(s.grpcServer, chatService)
+func (s *Server) RegisterServices(userService pb.UserServiceServer, chatService pb.ChatServiceServer) {
+	pb.RegisterUserServiceServer(s.grpcServer, userService)
+	pb.RegisterChatServiceServer(s.grpcServer, chatService)
 }
 
 func (s *Server) Start(addr string) error {

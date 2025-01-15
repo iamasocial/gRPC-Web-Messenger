@@ -2,14 +2,14 @@ syntax = "proto3";
 
 package messenger;
 
-option go_package = "./proto";
+option go_package = "/generated";
 
 service ChatService {
     rpc CreateChat(CreateChatRequest) returns (CreateChatResponse);
     rpc GetChats(GetChatsRequst) returns (GetChatsResponse);
     rpc DeleteChat(DeleteChatRequest) returns (DeleteChatResponse);
-    // rpc SendMessage(SendMessageRequest)
-    // GetMessages stream
+    // rpc SendMessage(stream SendMessageRequest) returns (stream SendMessageResponse);
+    rpc Chat(stream ChatMessage) returns (stream ChatResponse);
 }
 
 message CreateChatRequest {
@@ -32,4 +32,15 @@ message DeleteChatRequest {
 
 message DeleteChatResponse {
     bool success = 1;
+}
+
+message ChatMessage {
+    string receiver_username = 1;
+    string content = 2;
+}
+
+message ChatResponse {
+    string sender_username = 1;
+    string content = 2;
+    int64 timestamp = 3;
 }

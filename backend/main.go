@@ -1,16 +1,17 @@
 package main
 
 import (
+	"gRPCWebServer/backend/broker"
+	"gRPCWebServer/backend/repository"
+	"gRPCWebServer/backend/server"
+	"gRPCWebServer/backend/service"
+	"gRPCWebServer/backend/storage"
 	"log"
-	"messenger/backend/repository"
-	"messenger/backend/server"
-	"messenger/backend/service"
-	"messenger/backend/storage"
 )
 
 func main() {
 	db, err := storage.ConnectDB(storage.Config{
-		Host:     "localhost",
+		Host:     "db",
 		Port:     5432,
 		User:     "admin",
 		Password: "topsecret",
@@ -18,13 +19,19 @@ func main() {
 		SSLMode:  "disable",
 	})
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		log.Fatal(err)
+	}
+
+	broker, err := broker.NewMessageBroker("amqp://admin:topsecret@rabbitmq:5672/")
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	userRepo := repository.NewUserRepo(db)
 	chatRepo := repository.NewChatRepository(db)
+	messageRepo := repository.NewMessageRepository(db)
 	userService := service.NewUserService(userRepo)
-	chatService := service.NewChatService(chatRepo, userRepo)
+	chatService := service.NewChatService(chatRepo, userRepo, messageRepo, broker)
 	srv := server.NewServer()
 
 	srv.RegisterServices(userService, chatService)

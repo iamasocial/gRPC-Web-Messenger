@@ -11,6 +11,7 @@ type ChatRepository interface {
 	CreateChat(ctx context.Context, user1ID, user2ID uint64) error
 	GetChatByUserIds(ctx context.Context, userId1, userId2 uint64) (uint64, error)
 	GetChatsByUserId(ctx context.Context, userId uint64) ([]string, error)
+	SendMessage(ctx context.Context, chatId, senderId uint64, content string) error
 	DeleteChat(ctx context.Context, chatId uint64) error
 }
 
@@ -80,6 +81,16 @@ func (cr *chatRepository) DeleteChat(ctx context.Context, chatId uint64) error {
 
 	if rowsAffected == 0 {
 		return fmt.Errorf("chat with ID %d not found", chatId)
+	}
+
+	return nil
+}
+
+func (cr *chatRepository) SendMessage(ctx context.Context, chatId, senderId uint64, content string) error {
+	query := `INSERT INTO messages (chat_id, sender_id, content, sent_at) VALUES ($1, $2, $3, NOW())`
+	_, err := cr.db.ExecContext(ctx, query, chatId, senderId, content)
+	if err != nil {
+		return fmt.Errorf("failed to send message: %w", err)
 	}
 
 	return nil

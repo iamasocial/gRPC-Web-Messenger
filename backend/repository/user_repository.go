@@ -13,6 +13,7 @@ import (
 type UserRepository interface {
 	Create(ctx context.Context, user entities.User) (uint64, error)
 	GetByUsername(ctx context.Context, username string) (*entities.User, error)
+	GetUserNameById(ctx context.Context, userId uint64) (string, error)
 }
 
 type userRepo struct {
@@ -33,11 +34,11 @@ func (ur *userRepo) Create(ctx context.Context, user entities.User) (uint64, err
 	return userID, nil
 }
 
-func (us *userRepo) GetByUsername(ctx context.Context, username string) (*entities.User, error) {
+func (ur *userRepo) GetByUsername(ctx context.Context, username string) (*entities.User, error) {
 	var user entities.User
 	query := `SELECT id, username, password_hash FROM users WHERE username = $1`
 
-	err := us.db.GetContext(ctx, &user, query, username)
+	err := ur.db.GetContext(ctx, &user, query, username)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, sql.ErrNoRows
@@ -45,4 +46,16 @@ func (us *userRepo) GetByUsername(ctx context.Context, username string) (*entiti
 		return nil, fmt.Errorf("failed to get user by username: %v", err)
 	}
 	return &user, nil
+}
+
+func (ur *userRepo) GetUserNameById(ctx context.Context, userId uint64) (string, error) {
+	var username string
+	query := `SELECT username FROM users WHERE id = $1`
+
+	err := ur.db.GetContext(ctx, &username, query, userId)
+	if err != nil {
+		return "", fmt.Errorf("error fetching username for user ID %d: %w", userId, err)
+	}
+
+	return username, nil
 }

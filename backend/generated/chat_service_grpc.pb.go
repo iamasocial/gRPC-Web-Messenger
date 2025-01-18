@@ -19,10 +19,11 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ChatService_CreateChat_FullMethodName = "/messenger.ChatService/CreateChat"
-	ChatService_GetChats_FullMethodName   = "/messenger.ChatService/GetChats"
-	ChatService_DeleteChat_FullMethodName = "/messenger.ChatService/DeleteChat"
-	ChatService_Chat_FullMethodName       = "/messenger.ChatService/Chat"
+	ChatService_CreateChat_FullMethodName    = "/messenger.ChatService/CreateChat"
+	ChatService_GetChats_FullMethodName      = "/messenger.ChatService/GetChats"
+	ChatService_ConnectToChat_FullMethodName = "/messenger.ChatService/ConnectToChat"
+	ChatService_DeleteChat_FullMethodName    = "/messenger.ChatService/DeleteChat"
+	ChatService_Chat_FullMethodName          = "/messenger.ChatService/Chat"
 )
 
 // ChatServiceClient is the client API for ChatService service.
@@ -31,8 +32,8 @@ const (
 type ChatServiceClient interface {
 	CreateChat(ctx context.Context, in *CreateChatRequest, opts ...grpc.CallOption) (*CreateChatResponse, error)
 	GetChats(ctx context.Context, in *GetChatsRequst, opts ...grpc.CallOption) (*GetChatsResponse, error)
+	ConnectToChat(ctx context.Context, in *ConnectRequest, opts ...grpc.CallOption) (*ConnectResponse, error)
 	DeleteChat(ctx context.Context, in *DeleteChatRequest, opts ...grpc.CallOption) (*DeleteChatResponse, error)
-	// rpc SendMessage(stream SendMessageRequest) returns (stream SendMessageResponse);
 	Chat(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ChatMessage, ChatResponse], error)
 }
 
@@ -58,6 +59,16 @@ func (c *chatServiceClient) GetChats(ctx context.Context, in *GetChatsRequst, op
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetChatsResponse)
 	err := c.cc.Invoke(ctx, ChatService_GetChats_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *chatServiceClient) ConnectToChat(ctx context.Context, in *ConnectRequest, opts ...grpc.CallOption) (*ConnectResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ConnectResponse)
+	err := c.cc.Invoke(ctx, ChatService_ConnectToChat_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -93,8 +104,8 @@ type ChatService_ChatClient = grpc.BidiStreamingClient[ChatMessage, ChatResponse
 type ChatServiceServer interface {
 	CreateChat(context.Context, *CreateChatRequest) (*CreateChatResponse, error)
 	GetChats(context.Context, *GetChatsRequst) (*GetChatsResponse, error)
+	ConnectToChat(context.Context, *ConnectRequest) (*ConnectResponse, error)
 	DeleteChat(context.Context, *DeleteChatRequest) (*DeleteChatResponse, error)
-	// rpc SendMessage(stream SendMessageRequest) returns (stream SendMessageResponse);
 	Chat(grpc.BidiStreamingServer[ChatMessage, ChatResponse]) error
 	mustEmbedUnimplementedChatServiceServer()
 }
@@ -111,6 +122,9 @@ func (UnimplementedChatServiceServer) CreateChat(context.Context, *CreateChatReq
 }
 func (UnimplementedChatServiceServer) GetChats(context.Context, *GetChatsRequst) (*GetChatsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetChats not implemented")
+}
+func (UnimplementedChatServiceServer) ConnectToChat(context.Context, *ConnectRequest) (*ConnectResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ConnectToChat not implemented")
 }
 func (UnimplementedChatServiceServer) DeleteChat(context.Context, *DeleteChatRequest) (*DeleteChatResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteChat not implemented")
@@ -175,6 +189,24 @@ func _ChatService_GetChats_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ChatService_ConnectToChat_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ConnectRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ChatServiceServer).ConnectToChat(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ChatService_ConnectToChat_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ChatServiceServer).ConnectToChat(ctx, req.(*ConnectRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ChatService_DeleteChat_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteChatRequest)
 	if err := dec(in); err != nil {
@@ -214,6 +246,10 @@ var ChatService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetChats",
 			Handler:    _ChatService_GetChats_Handler,
+		},
+		{
+			MethodName: "ConnectToChat",
+			Handler:    _ChatService_ConnectToChat_Handler,
 		},
 		{
 			MethodName: "DeleteChat",

@@ -3,13 +3,14 @@ package broker
 import (
 	"fmt"
 	"gRPCWebServer/backend/entities"
+	"time"
 
 	"github.com/rabbitmq/amqp091-go"
 )
 
 type MessageBroker interface {
 	PublishMessage(message *entities.Message) error
-	SubscribeMessages(queueName string, handleMessage func(string) error) error
+	SubscribeMessages(queueName string, handleMessage func(string, time.Time) error) error
 	Close()
 }
 
@@ -50,7 +51,7 @@ func (mb *messageBroker) PublishMessage(message *entities.Message) error {
 		return fmt.Errorf("failed to declare queue: %v", err)
 	}
 
-	messageBody := fmt.Sprintf("Sender: %d, Message: %s", message.SenderId, message.Content)
+	messageBody := message.Content
 
 	err = mb.channel.Publish(
 		"",
@@ -60,6 +61,7 @@ func (mb *messageBroker) PublishMessage(message *entities.Message) error {
 		amqp091.Publishing{
 			ContentType: "text/plain",
 			Body:        []byte(messageBody),
+			Timestamp:   message.Timestamp,
 		},
 	)
 
@@ -70,7 +72,19 @@ func (mb *messageBroker) PublishMessage(message *entities.Message) error {
 	return nil
 }
 
-func (mb *messageBroker) SubscribeMessages(queueName string, handleMessage func(string) error) error {
+func (mb *messageBroker) SubscribeMessages(queueName string, handleMessage func(string, time.Time) error) error {
+	_, err := mb.channel.QueueDeclare(
+		queueName,
+		true,
+		false,
+		false,
+		false,
+		nil,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to declare queue: %v", err)
+	}
+
 	msgs, err := mb.channel.Consume(
 		queueName,
 		"",
@@ -86,7 +100,10 @@ func (mb *messageBroker) SubscribeMessages(queueName string, handleMessage func(
 	}
 
 	for msg := range msgs {
-		if err := handleMessage(string(msg.Body)); err != nil {
+		messageBody := string(msg.Body)
+		timestamp := msg.Timestamp
+
+		if err := handleMessage(messageBody, timestamp); err != nil {
 			return fmt.Errorf("failed to handle message: %v", err)
 		}
 	}

@@ -7,8 +7,8 @@ option go_package = "/generated";
 service ChatService {
     rpc CreateChat(CreateChatRequest) returns (CreateChatResponse);
     rpc GetChats(GetChatsRequst) returns (GetChatsResponse);
+    rpc ConnectToChat(ConnectRequest) returns (ConnectResponse);
     rpc DeleteChat(DeleteChatRequest) returns (DeleteChatResponse);
-    // rpc SendMessage(stream SendMessageRequest) returns (stream SendMessageResponse);
     rpc Chat(stream ChatMessage) returns (stream ChatResponse);
 }
 
@@ -34,9 +34,16 @@ message DeleteChatResponse {
     bool success = 1;
 }
 
-message ChatMessage {
+message ConnectRequest {
     string receiver_username = 1;
-    string content = 2;
+}
+
+message ConnectResponse {
+    bool success = 1;
+}
+
+message ChatMessage {
+    string content = 1;
 }
 
 message ChatResponse {

@@ -26,6 +26,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer broker.Close()
 
 	userRepo := repository.NewUserRepo(db)
 	chatRepo := repository.NewChatRepository(db)

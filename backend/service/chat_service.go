@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"gRPCWebServer/backend/broker"
 	"gRPCWebServer/backend/entities"
 	pb "gRPCWebServer/backend/generated"
@@ -32,6 +33,11 @@ type chatService struct {
 	broker      broker.MessageBroker
 	streams     sync.Map
 }
+
+// type UserStream struct {
+// 	Stream           pb.ChatService_ChatServer
+// 	ReceiverUsername string
+// }
 
 func NewChatService(chatRepo repository.ChatRepository, userRepo repository.UserRepository, messageRepo repository.MessageRepository, broker broker.MessageBroker) *chatService {
 	return &chatService{chatRepo: chatRepo, userRepo: userRepo, messageRepo: messageRepo, broker: broker}
@@ -117,175 +123,88 @@ func (cs *chatService) DeleteChat(ctx context.Context, req *pb.DeleteChatRequest
 	}, nil
 }
 
-// middleware issue
-// func (s *chatService) Chat(stream pb.ChatService_ChatServer) error {
-// 	senderId, ok := stream.Context().Value(middleware.TokenKey("user_id")).(uint64)
-// 	if !ok {
-// 		return status.Errorf(codes.Unauthenticated, "user ID is missing in contenxt")
-// 	}
+func (s *chatService) ConnectToChat(ctx context.Context, req *pb.ConnectRequest) (*pb.ConnectResponse, error) {
+	senderId, ok := ctx.Value(middleware.TokenKey("user_id")).(uint64)
+	if !ok {
+		return nil, status.Errorf(codes.Unauthenticated, "User ID is missing in contenxt")
+	}
 
-// 	s.streams.Store(senderId, stream)
-// 	defer s.streams.Delete(senderId)
+	receiverUsername := req.GetReceiverUsername()
+	if receiverUsername == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "Receiver username is required")
+	}
 
-// 	log.Printf("User %d connected to chat", senderId)
+	receiver, err := s.userRepo.GetByUsername(ctx, receiverUsername)
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "User '%s' does not exists", receiverUsername)
+	}
 
-// 	errCh := make(chan error, 1)
+	_, err = s.chatRepo.GetChatByUserIds(ctx, senderId, receiver.ID)
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "Chat with '%s' not found", receiverUsername)
+	}
 
-// 	queueName := fmt.Sprintf("chat_queue_%d", senderId)
-// 	go func() {
-// 		errCh <- s.broker.SubscribeMessages(queueName, func(msg string) error {
-// 			err := stream.Send(&pb.ChatMessage{
-// 				ReceiverUsername: "",
-// 				Content:          msg,
-// 				Timestamp:        time.Now().Unix(),
-// 			})
-// 			if err != nil {
-// 				log.Printf("failed to send message to user '%d': %v", senderId, err)
-// 			}
-// 			return nil
-// 		})
+	_, exists := s.streams.LoadOrStore(senderId, receiverUsername)
+	if exists {
+		return nil, status.Errorf(codes.AlreadyExists, "Chat with '%s' already exists", receiverUsername)
+	}
 
-// 		// if err != nil {
-// 		// 	log.Printf("error subscribing to messages for user '%d': %v", senderId, err)
-// 		// }
-// 	}()
+	log.Printf("User %d connected to chat with receiver '%s'", senderId, receiverUsername)
 
-// 	for {
-// 		select {
-// 		case err := <-errCh:
-// 			if err != nil {
-// 				log.Printf("Subscription error for user %d: %v", senderId, err)
-// 				return status.Errorf(codes.Internal, "Failed to subscribe to messages: %v", err)
-// 			}
-
-// 		default:
-// 			req, err := stream.Recv()
-// 			if err != nil {
-// 				if err == io.EOF {
-// 					log.Printf("Stream closed by user %d", senderId)
-// 					return nil
-// 				}
-// 				return status.Errorf(codes.Internal, "Failed to receive message: %v", err)
-// 			}
-
-// 			content := req.GetContent()
-// 			if content == "" {
-// 				return status.Errorf(codes.InvalidArgument, "content can't be emtpy")
-// 			}
-
-// 			receiver, err := s.userRepo.GetByUsername(stream.Context(), req.GetReceiverUsername())
-// 			if err != nil || receiver == nil {
-// 				return status.Errorf(codes.NotFound, "Receiver not found")
-// 			}
-
-// 			chatId, err := s.chatRepo.GetChatByUserIds(stream.Context(), senderId, receiver.ID)
-// 			if err != nil {
-// 				return status.Errorf(codes.Internal, "Error checking chat existence: %v", err)
-// 			}
-
-// 			message := entities.Message{
-// 				ChatID:     chatId,
-// 				SenderId:   senderId,
-// 				ReceiverId: receiver.ID,
-// 				Content:    content,
-// 				Timestamp:  time.Now(),
-// 			}
-
-// 			err = s.messageRepo.SaveMessage(&message)
-// 			if err != nil {
-// 				return status.Errorf(codes.Internal, "Failed to save message: %v", err)
-// 			}
-
-// 			err = s.broker.PublishMessage(&message)
-// 			if err != nil {
-// 				return status.Errorf(codes.Internal, "Failed to publish message to broker: %v", err)
-// 			}
-
-// 			if recvStream, ok := s.streams.Load(receiver.ID); ok {
-// 				recvStream := recvStream.(pb.ChatService_ChatServer)
-
-// 				err = recvStream.Send(&pb.ChatMessage{
-// 					ReceiverUsername: req.GetReceiverUsername(),
-// 					Content:          req.GetContent(),
-// 					Timestamp:        time.Now().Unix(),
-// 				})
-// 				if err != nil {
-// 					log.Printf("Couldn't send message to receiver %d: %v", receiver.ID, err)
-// 				}
-// 			} else {
-// 				log.Printf("Receiver %d is not connected, message sent to queue", receiver.ID)
-// 			}
-// 		}
-// 	}
-// 	// for {
-// 	// 	req, err := stream.Recv()
-// 	// 	if err != nil {
-// 	// 		if err == io.EOF {
-// 	// 			log.Printf("Stream closed by user %d", senderId)
-// 	// 			return nil
-// 	// 		}
-// 	// 	}
-
-// 	// 	content := req.GetContent()
-// 	// 	if content == "" {
-// 	// 		return status.Errorf(codes.InvalidArgument, "content can't be empty")
-// 	// 	}
-
-// 	// 	receiver, err := s.userRepo.GetByUsername(stream.Context(), req.GetReceiverUsername())
-// 	// 	if err != nil || receiver == nil {
-// 	// 		return status.Errorf(codes.NotFound, "Receiver not found")
-// 	// 	}
-
-// 	// 	chatId, err := s.chatRepo.GetChatByUserIds(stream.Context(), senderId, receiver.ID)
-// 	// 	if err != nil {
-// 	// 		return status.Errorf(codes.Internal, "Error checking existence: %v", err)
-// 	// 	}
-
-// 	// 	message := entities.Message{
-// 	// 		ChatID:     chatId,
-// 	// 		SenderId:   senderId,
-// 	// 		ReceiverId: receiver.ID,
-// 	// 		Content:    content,
-// 	// 		Timestamp:  time.Now(),
-// 	// 	}
-
-// 	// 	err = s.messageRepo.SaveMessage(&message)
-// 	// 	if err != nil {
-// 	// 		return status.Errorf(codes.Internal, "Failed to save message: %v", err)
-// 	// 	}
-
-// 	// 	err = s.broker.PublishMessage(&message)
-// 	// 	if err != nil {
-// 	// 		return status.Errorf(codes.Internal, "couldn't send message to broker")
-// 	// 	}
-
-// 	// 	if recvStream, ok := s.streams.Load(receiver.ID); ok {
-// 	// 		recvStream := recvStream.(pb.ChatService_ChatServer)
-
-// 	// 		err = recvStream.Send(&pb.ChatMessage{
-// 	// 			ReceiverUsername: req.GetReceiverUsername(),
-// 	// 			Content:          req.GetContent(),
-// 	// 			Timestamp:        req.GetTimestamp(),
-// 	// 		})
-// 	// 		if err != nil {
-// 	// 			log.Printf("Couldn't send message to receiver %d: %v", receiver.ID, err)
-// 	// 		}
-// 	// 	} else {
-// 	// 		log.Printf("Receiver %d is not connected", receiver.ID)
-// 	// 	}
-// 	// }
-// }
+	return &pb.ConnectResponse{
+		Success: true,
+	}, nil
+}
 
 func (s *chatService) Chat(stream pb.ChatService_ChatServer) error {
 	senderId, ok := stream.Context().Value(middleware.TokenKey("user_id")).(uint64)
 	if !ok {
-		return status.Errorf(codes.Unauthenticated, "User ID is missing in contenxt")
+		return status.Errorf(codes.Unauthenticated, "User ID is missing in context")
 	}
 
+	receiverUsername, ok := s.streams.Load(senderId)
+	if !ok {
+		return status.Errorf(codes.NotFound, "Sender not connected to any chats")
+	}
+
+	receiver, _ := s.userRepo.GetByUsername(stream.Context(), receiverUsername.(string))
+	senderUsername, _ := s.userRepo.GetUserNameById(stream.Context(), senderId)
+
+	s.streams.Delete(senderId)
 	s.streams.Store(senderId, stream)
 	defer s.streams.Delete(senderId)
+	// s.streams.Swap(senderId, stream)
 
-	log.Printf("User %d connected to chat", senderId)
+	chatId, err := s.chatRepo.GetChatByUserIds(stream.Context(), senderId, receiver.ID)
+	if err != nil {
+		return status.Errorf(codes.Internal, "Error checking chat existance: %v", err)
+	}
+
+	log.Printf("User %d started chatting with user %d", senderId, receiver.ID)
+
+	go func() {
+		queueName := fmt.Sprintf("chat_queue_%d", senderId)
+
+		handleMessage := func(content string, timestamp time.Time) error {
+			err := stream.Send(&pb.ChatResponse{
+				SenderUsername: receiverUsername.(string),
+				Content:        content,
+				Timestamp:      timestamp.Unix(),
+			})
+
+			if err != nil {
+				log.Printf("Failed to send offline message: %v", err)
+			}
+
+			log.Printf("Offline message sent to user %d: %s", senderId, content)
+			return nil
+		}
+
+		err := s.broker.SubscribeMessages(queueName, handleMessage)
+		if err != nil {
+			log.Printf("Failed to subscribe to offline messages for user %d: %v", senderId, err)
+		}
+	}()
 
 	for {
 		req, err := stream.Recv()
@@ -302,16 +221,6 @@ func (s *chatService) Chat(stream pb.ChatService_ChatServer) error {
 			return status.Errorf(codes.InvalidArgument, "Message content can't be empty")
 		}
 
-		receiver, err := s.userRepo.GetByUsername(stream.Context(), req.GetReceiverUsername())
-		if err != nil || receiver == nil {
-			return status.Errorf(codes.NotFound, "Receiver not found")
-		}
-
-		chatId, err := s.chatRepo.GetChatByUserIds(stream.Context(), senderId, receiver.ID)
-		if err != nil {
-			return status.Errorf(codes.Internal, "Error checking chat existance: %v", err)
-		}
-
 		message := entities.Message{
 			ChatID:     chatId,
 			SenderId:   senderId,
@@ -320,27 +229,37 @@ func (s *chatService) Chat(stream pb.ChatService_ChatServer) error {
 			Timestamp:  time.Now(),
 		}
 
-		err = s.messageRepo.SaveMessage(&message)
-		if err != nil {
-			return status.Errorf(codes.Internal, "Failed to save message: %v", err)
-		}
-
-		if recvStream, ok := s.streams.Load(receiver.ID); ok {
-			recvStream := recvStream.(pb.ChatService_ChatServer)
-
-			err = recvStream.Send(&pb.ChatResponse{
-				SenderUsername: req.GetReceiverUsername(),
-				Content:        content,
-				Timestamp:      time.Now().Unix(),
-			})
-
+		go func() {
+			err = s.messageRepo.SaveMessage(&message)
 			if err != nil {
-				log.Printf("Coundn't send message to receiver %d: %v", receiver.ID, err)
-			} else {
-				log.Printf("Message sent from user %d to user %d", senderId, receiver.ID)
+				log.Printf("Failed to save message: %v", err)
 			}
-		} else {
-			log.Printf("Receiver %d is not connected. Message will not be delivered in real-time.", receiver.ID)
-		}
+		}()
+
+		go func() {
+			if recvStream, ok := s.streams.Load(receiver.ID); ok {
+				err := recvStream.(pb.ChatService_ChatServer).Send(&pb.ChatResponse{
+					SenderUsername: senderUsername,
+					Content:        content,
+					Timestamp:      message.Timestamp.Unix(),
+				})
+
+				if err != nil {
+					log.Printf("Couldn't send message to receiver %d: %v", receiver.ID, err)
+				} else {
+					log.Printf("Message sent from user %d to user %d", senderId, receiver.ID)
+				}
+
+			} else {
+				log.Printf("Receiver %d not connected, sending message to queue,", receiver.ID)
+
+				err := s.broker.PublishMessage(&message)
+				if err != nil {
+					log.Printf("Failed to send message to RabbitMQ: %v", err)
+				} else {
+					log.Printf("Message for user %d queued in RabbitMQ", receiver.ID)
+				}
+			}
+		}()
 	}
 }

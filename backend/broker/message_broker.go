@@ -23,9 +23,22 @@ type messageBroker struct {
 }
 
 func NewMessageBroker(url string) (*messageBroker, error) {
-	conn, err := amqp091.Dial(url)
+	maxRetries := 10
+	delay := 3 * time.Second
+	var conn *amqp091.Connection
+	var err error
+
+	for i := 0; i < maxRetries; i++ {
+		conn, err = amqp091.Dial(url)
+		if err == nil {
+			break
+		}
+		log.Printf("Failed to connect to RabbitMQ (attempt %d/%d): %v", i+1, maxRetries, err)
+		time.Sleep(delay)
+	}
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to RabbitMQ: %v", err)
+		return nil, fmt.Errorf("failed to connect to RabbitMQ after %d attempts: %v", maxRetries, err)
 	}
 
 	ch, err := conn.Channel()

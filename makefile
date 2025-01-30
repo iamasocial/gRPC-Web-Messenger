@@ -27,7 +27,7 @@ DOCKER_COMPOSE_FILE = backend/docker/docker-compose.yml
 CONTAINER_NAME = messenger-backend-container
 
 docker-up:
-	@docker-compose -f $(DOCKER_COMPOSE_FILE) up --build -d
+	@docker-compose -f $(DOCKER_COMPOSE_FILE) up --build -d && docker logs -f $(CONTAINER_NAME)
 
 docker-down:
 	@docker-compose -f $(DOCKER_COMPOSE_FILE) down

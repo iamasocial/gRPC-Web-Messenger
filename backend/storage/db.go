@@ -25,7 +25,21 @@ func ConnectDB(cfg Config) (*sqlx.DB, error) {
 		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.DBName, cfg.SSLMode,
 	)
 
-	db, err := sqlx.Connect("postgres", dsn)
+	var db *sqlx.DB
+	var err error
+
+	maxRetries := 10
+	delay := 3 * time.Second
+
+	for i := 0; i < maxRetries; i++ {
+		db, err = sqlx.Connect("postgres", dsn)
+		if err == nil {
+			break
+		}
+		log.Printf("Failed to connect to PostgreSQL (attempt %d/%d): %v", i+1, maxRetries, err)
+		time.Sleep(delay)
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %v", err)
 	}

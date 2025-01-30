@@ -196,6 +196,32 @@ func (s *chatService) Chat(stream pb.ChatService_ChatServer) error {
 
 	log.Printf("User %d started chatting with user %d", senderID, receiver.ID)
 
+	messages, err := s.getHistory(stream.Context(), chatID)
+	if err != nil {
+		return status.Errorf(codes.Internal, "%v", err)
+	}
+
+	for _, message := range messages {
+		senderUsername, err := s.userRepo.GetUserNameById(stream.Context(), message.SenderId)
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to get sender username from message")
+		}
+
+		resp := &pb.ChatResponse{
+			SenderUsername: senderUsername,
+			Content:        message.Content,
+			Timestamp:      message.Timestamp.Unix(),
+		}
+
+		err = stream.Send(resp)
+		if err != nil {
+			log.Printf("Failed to send message from history to user")
+			return status.Error(codes.Internal, "failed to send history message")
+		}
+	}
+
+	log.Printf("finished loading history")
+
 	handleMessage := func(senderUsername, content string, timestamp time.Time) error {
 
 		resp := &pb.ChatResponse{
@@ -298,4 +324,14 @@ func (s *chatService) Chat(stream pb.ChatService_ChatServer) error {
 			}()
 		}
 	}
+}
+
+func (s *chatService) getHistory(ctx context.Context, chatId uint64) ([]entities.Message, error) {
+	limit := 100
+	messages, err := s.messageRepo.GetHistory(ctx, chatId, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get last 100 messages: %v", err)
+	}
+
+	return messages, nil
 }

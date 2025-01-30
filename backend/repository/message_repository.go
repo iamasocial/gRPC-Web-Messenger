@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"context"
+	"fmt"
 	"gRPCWebServer/backend/entities"
 
 	"github.com/jmoiron/sqlx"
@@ -8,6 +10,7 @@ import (
 
 type MessageRepository interface {
 	SaveMessage(message *entities.Message) error
+	GetHistory(ctx context.Context, chatId uint64, limit int) ([]entities.Message, error)
 }
 
 type messageRepository struct {
@@ -38,4 +41,35 @@ func (mr *messageRepository) SaveMessage(message *entities.Message) error {
 	}
 
 	return nil
+}
+
+func (mr *messageRepository) GetHistory(ctx context.Context, chatId uint64, limit int) ([]entities.Message, error) {
+	query := `SELECT id, chat_id, sender_id, receiver_id, content, timestamp
+			  FROM (
+			  		SELECT id, chat_id, sender_id, receiver_id, content, timestamp
+					FROM messages WHERE chat_id = $1 ORDER BY timestamp DESC LIMIT $2
+					) subquery
+			   ORDER BY timestamp ASC;`
+
+	rows, err := mr.db.QueryContext(ctx, query, chatId, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query messages: %v", err)
+	}
+
+	defer rows.Close()
+
+	var messages []entities.Message
+	for rows.Next() {
+		var message entities.Message
+		if err := rows.Scan(&message.ID, &message.ChatID, &message.SenderId, &message.ReceiverId, &message.Content, &message.Timestamp); err != nil {
+			return nil, fmt.Errorf("failed to scan message: %v", err)
+		}
+		messages = append(messages, message)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over rows: %v", err)
+	}
+
+	return messages, nil
 }

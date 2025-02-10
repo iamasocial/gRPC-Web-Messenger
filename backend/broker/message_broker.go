@@ -33,7 +33,7 @@ func NewMessageBroker(url string) (*messageBroker, error) {
 		if err == nil {
 			break
 		}
-		log.Printf("Failed to connect to RabbitMQ (attempt %d/%d): %v", i+1, maxRetries, err)
+		// log.Printf("Failed to connect to RabbitMQ (attempt %d/%d): %v", i+1, maxRetries, err)
 		time.Sleep(delay)
 	}
 
@@ -46,6 +46,7 @@ func NewMessageBroker(url string) (*messageBroker, error) {
 		return nil, fmt.Errorf("failed to create a channel: %v", err)
 	}
 
+	log.Print("RabbitMQ connection successfully established")
 	return &messageBroker{
 		conn:    conn,
 		channel: ch,

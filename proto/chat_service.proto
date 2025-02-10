@@ -35,7 +35,7 @@ message DeleteChatResponse {
 }
 
 message ConnectRequest {
-    string receiver_username = 1;
+    string receiverusername = 1;
 }
 
 message ConnectResponse {
@@ -47,7 +47,7 @@ message ChatMessage {
 }
 
 message ChatResponse {
-    string sender_username = 1;
+    string senderusername = 1;
     string content = 2;
     int64 timestamp = 3;
 }

@@ -137,7 +137,7 @@ func (s *chatService) ConnectToChat(ctx context.Context, req *pb.ConnectRequest)
 		return nil, status.Errorf(codes.Unauthenticated, "User ID is missing in contenxt")
 	}
 
-	receiverUsername := req.GetReceiverUsername()
+	receiverUsername := req.GetReceiverusername()
 	if receiverUsername == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "Receiver username is required")
 	}
@@ -208,7 +208,7 @@ func (s *chatService) Chat(stream pb.ChatService_ChatServer) error {
 		}
 
 		resp := &pb.ChatResponse{
-			SenderUsername: senderUsername,
+			Senderusername: senderUsername,
 			Content:        message.Content,
 			Timestamp:      message.Timestamp.Unix(),
 		}
@@ -225,7 +225,7 @@ func (s *chatService) Chat(stream pb.ChatService_ChatServer) error {
 	handleMessage := func(senderUsername, content string, timestamp time.Time) error {
 
 		resp := &pb.ChatResponse{
-			SenderUsername: senderUsername,
+			Senderusername: senderUsername,
 			Content:        content,
 			Timestamp:      timestamp.Unix(),
 		}
@@ -296,6 +296,7 @@ func (s *chatService) Chat(stream pb.ChatService_ChatServer) error {
 			}
 
 			messageWG.Add(1)
+			// need to refactor
 			go func() {
 				defer messageWG.Done()
 				if err := s.messageRepo.SaveMessage(message); err != nil {
@@ -309,7 +310,7 @@ func (s *chatService) Chat(stream pb.ChatService_ChatServer) error {
 				recvStream, err := s.streamManager.GetStream(receiver.ID)
 				if err == nil {
 					if err := recvStream.Send(&pb.ChatResponse{
-						SenderUsername: senderUsername,
+						Senderusername: senderUsername,
 						Content:        content,
 						Timestamp:      message.Timestamp.Unix(),
 					}); err != nil {

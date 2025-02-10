@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authorization</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+
+        <div id="login-form" class="form">
+            <h2>Вход</h2>
+            <input type="text" id="login-username" class="input-field" placeholder="Имя пользователя" required>
+            <input type="password" id="login-password" class="input-field" placeholder="Пароль" required>
+            <button class="submit-btn" onclick="login()">Войти</button>
+            <p class="toggle-link">Нет аккаунта? <a href="#" onclick="toggleForms()">Зарегестрироваться</a></p>
+        </div>
+
+        <div id="register-form" class="form hidden">
+            <h2>Регистрация</h2>
+            <input type="text" id="register-username" class="input-field" placeholder="Имя пользователя" required>
+            <input type="password" id="register-password" class="input-field" placeholder="Пароль" required>
+            <input type="password" id="register-confirm-password" class="input-field" placeholder="Подтвердите пароль" required>
+            <button class="submit-btn" onclick="register()">Зарегестрироваться</button>
+            <p class="toggle-link">Уже есть аккаунт? <a href="#" onclick="toggleForms()">Войти</a></p>
+        </div>
+        
+    </div>
+
+    <script src="bundle.js"></script>
+</body>
+</html>

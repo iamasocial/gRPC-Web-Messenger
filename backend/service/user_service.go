@@ -43,9 +43,9 @@ func (us *UserService) Register(ctx context.Context, req *pb.RegisterRequest) (*
 		return nil, errors.New("username already taken")
 	}
 
-	if req.Password != req.ConfirmPassword {
-		return nil, errors.New("password must match")
-	}
+	// if req.Password != req.Confirmpassword {
+	// 	return nil, errors.New("password must match")
+	// }
 
 	passwordHash, err := utils.HashPassword(req.Password)
 	if err != nil {

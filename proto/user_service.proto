@@ -13,7 +13,7 @@ service UserService {
 message RegisterRequest {
   string username = 1;
   string password = 2;
-  string confirm_password = 3;
+  string confirmpassword = 3;
 }
 
 message RegisterResponse {

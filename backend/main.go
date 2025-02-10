@@ -39,7 +39,7 @@ func main() {
 
 	srv.RegisterServices(userService, chatService)
 
-	if err := srv.Start(":50051"); err != nil {
+	if err := srv.Start(":50051", ":8888"); err != nil {
 		log.Fatalf("failed to start server: %v", err)
 	}
 }

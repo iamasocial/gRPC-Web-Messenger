@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Чаты</title>
+    <link rel="stylesheet" href="styles/style.css">
+<script defer src="chats.bundle.js"></script></head>
+<body>
+    <div class="chats-container">
+        <aside class="sidebar">
+            <header class="sidebar-header">
+                <h2>Чаты</h2>
+            </header>
+            <div class="chat-list" id="chat-list">
+                <!-- Чаты будут добавляться сюда -->
+            </div>
+        </aside>
+        <main class="chat-window">
+            <header class="chat-header">
+                <h2 id="chat-title">Выберите чат</h2>
+            </header>
+            <div class="chat-messages" id="chat-messages">
+                <!-- Сообщения будут добавляться сюда -->
+            </div>
+            <footer class="chat-footer">
+                <input type="text" id="message-input" placeholder="Напишите сообщение...">
+                <button id="send-button">➤</button>
+            </footer>
+        </main>
+    </div>
+</body>
+</html>

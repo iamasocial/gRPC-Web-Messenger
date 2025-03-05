@@ -4,6 +4,7 @@ import (
 	"fmt"
 	pb "gRPCWebServer/backend/generated"
 	"gRPCWebServer/backend/middleware"
+	"gRPCWebServer/backend/transport"
 	"log"
 	"net"
 	"net/http"
@@ -14,17 +15,20 @@ import (
 )
 
 type Server struct {
-	grpcServer *grpc.Server
+	grpcServer       *grpc.Server
+	webSocketHandler *transport.WebSocketHandler
 }
 
-func NewServer() *Server {
+func NewServer(wsHandler *transport.WebSocketHandler) *Server {
 	authMiddleWare := middleware.NewAuthInterceptor()
 	grpcServer := grpc.NewServer(
 		grpc.UnaryInterceptor(authMiddleWare.UnaryInterceptor()),
 		grpc.StreamInterceptor(authMiddleWare.StreamInterceptor()),
 	)
+
 	return &Server{
-		grpcServer: grpcServer,
+		grpcServer:       grpcServer,
+		webSocketHandler: wsHandler,
 	}
 }
 
@@ -35,7 +39,6 @@ func (s *Server) RegisterServices(userService pb.UserServiceServer, chatService 
 
 func (s *Server) Start(grpcAddr, httpAddr string) error {
 	lis, err := net.Listen("tcp", grpcAddr)
-	// _, err := net.Listen("tcp", addr)
 	if err != nil {
 		return fmt.Errorf("failed to listen %v", err)
 	}
@@ -43,7 +46,6 @@ func (s *Server) Start(grpcAddr, httpAddr string) error {
 	wrappedGrpc := grpcweb.WrapServer(
 		s.grpcServer,
 		grpcweb.WithOriginFunc(func(origin string) bool {
-			// return true
 			log.Printf("Origin: %s", origin)
 			return origin == "http://localhost:8081"
 		}),
@@ -64,21 +66,27 @@ func (s *Server) Start(grpcAddr, httpAddr string) error {
 			w.Header().Set("Access-Control-Expose-Headers", "grpc-status, grpc-message")
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 
-			log.Printf("Response Headers: %+v", w.Header())
-
 			if r.Method == http.MethodOptions {
 				log.Printf("Request method = OPTIONS")
 				w.WriteHeader(http.StatusNoContent)
 				return
 			}
 
+			if r.URL.Path == "/ws" {
+				log.Printf("Handling WebSocket request for %s", r.URL.Path)
+				s.webSocketHandler.Handle(w, r)
+				return
+			}
+
 			if wrappedGrpc.IsGrpcWebRequest(r) {
 				log.Printf("Handling gRPC-Web request for %s", r.URL.Path)
 				wrappedGrpc.ServeHTTP(w, r)
-			} else {
-				log.Printf("Status not found")
-				w.WriteHeader(http.StatusNotFound)
+				return
 			}
+
+			log.Printf("Status not found")
+			w.WriteHeader(http.StatusNotFound)
+
 		}),
 	}
 
@@ -90,9 +98,7 @@ func (s *Server) Start(grpcAddr, httpAddr string) error {
 		}
 	}()
 
-	// log.Printf("Server listening on %s", addr)
-	log.Printf("Starting gRPC-Web server on %s", httpAddr)
-	// return s.grpcServer.Serve(lis)
+	log.Printf("Starting gRPC-Web and WebSocket server on %s", httpAddr)
 	return httpServer.ListenAndServe()
 }
 

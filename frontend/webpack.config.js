@@ -1,17 +1,25 @@
 const path = require('path');
-const HtmlWebpackPlugin = require('html-webpack-plugin')
+const HtmlWebpackPlugin = require('html-webpack-plugin');
+const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 
 module.exports = {
-    entry: './src/index.js',
+    entry: {
+        auth: "./src/js/ui/auth_ui.js",
+        chats: "./src/js/ui/chats_ui.js",
+    },
     output: {
-        filename: 'bundle.js',
+        filename: '[name].bundle.js',
         path: path.resolve(__dirname, 'dist'),
         clean: true,
     },
     mode: 'development',
     devServer: {
         host: '0.0.0.0',
-        static: './dist',
+        // static: './dist',
+        static: {
+            directory: path.resolve(__dirname, 'dist'),
+            publicPath: '/',
+        },
         port: 8081,
         allowedHosts: [
             'insecuremessenger',
@@ -37,14 +45,23 @@ module.exports = {
             // },
             {
                 test: /\.css$/,
-                use: ["style-loader", "css-loader"],
+                use: [MiniCssExtractPlugin.loader, "css-loader"],
             }
         ],
     },
     plugins: [
-        new HtmlWebpackPlugin({
-            template: './src/index.html',
-            filename: 'index.html',
+        new MiniCssExtractPlugin({
+            filename: "styles/style.css",
         }),
+        new HtmlWebpackPlugin({
+            filename: 'index.html',
+            template: './src/pages/index.html',
+            chunks: ['auth'],
+        }),
+        new HtmlWebpackPlugin({
+            filename: "chats.html",
+            template: "./src/pages/chats.html",
+            chunks: ['chats']
+        })
     ],
 };

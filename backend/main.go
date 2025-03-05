@@ -2,11 +2,11 @@ package main
 
 import (
 	"gRPCWebServer/backend/broker"
-	"gRPCWebServer/backend/manager"
 	"gRPCWebServer/backend/repository"
 	"gRPCWebServer/backend/server"
 	"gRPCWebServer/backend/service"
 	"gRPCWebServer/backend/storage"
+	"gRPCWebServer/backend/transport"
 	"log"
 )
 
@@ -28,14 +28,17 @@ func main() {
 		log.Fatal(err)
 	}
 
-	streamManager := manager.NewStreamManager()
+	// streamManager := manager.NewStreamManager()
+	// streamManager := manager.NewStreamManager2()
 
 	userRepo := repository.NewUserRepo(db)
 	chatRepo := repository.NewChatRepository(db)
 	messageRepo := repository.NewMessageRepository(db)
 	userService := service.NewUserService(userRepo)
-	chatService := service.NewChatService(chatRepo, userRepo, messageRepo, broker, streamManager)
-	srv := server.NewServer()
+	chatService := service.NewChatService(chatRepo, userRepo, messageRepo, broker)
+	websocket := transport.NewWebSocketHandler()
+	srv := server.NewServer(websocket)
+	// srv := server.NewServer()
 
 	srv.RegisterServices(userService, chatService)
 

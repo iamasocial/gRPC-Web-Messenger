@@ -1,3 +1,6 @@
+/*!************************************************************************!*\
+  !*** css ./node_modules/css-loader/dist/cjs.js!./src/styles/style.css ***!
+  \************************************************************************/
 body {
     font-family: Arial, sans-serif;
     background-color: rgb(94, 196, 170);
@@ -119,7 +122,6 @@ body {
     width: 70%;
     display: flex;
     flex-direction: column;
-    /* background: #2d2d2d; */
 }
 
 .chat-header {
@@ -137,117 +139,53 @@ body {
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 12px;
 }
 
 /* Сообщение */
 .message {
     max-width: 70%;
-    padding: 12px 16px;
-    position: relative;
-    color: white;
-    font-size: 14px;
-    line-height: 1.4;
-    border-radius: 18px;
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 8px;
     word-wrap: break-word;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    margin: 8px 0;
 }
 
 .message.sent {
     background: #0084ff;
     align-self: flex-end;
-    border-bottom-right-radius: 4px;
-    margin-right: 8px;
 }
 
 .message.received {
     background: #444;
     align-self: flex-start;
-    border-bottom-left-radius: 4px;
-    margin-left: 8px;
-}
-
-.message-content {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-    gap: 10px;
-    width: 100%;
-}
-
-.message-text {
-    flex-grow: 1;
-    word-break: break-word;
-    line-height: 1.4;
-}
-
-.message-time {
-    flex-shrink: 0;
-    font-size: 0.75rem;
-    opacity: 0.8;
-    color: inherit;
-}
-
-.date-divider {
-    text-align: center;
-    margin: 20px 0;
-    position: relative;
-}
-
-.date-divider-text {
-    background: #444;
-    color: #999;
-    padding: 4px 12px;
-    border-radius: 15px;
-    font-size: 0.9em;
-    display: inline-block;
 }
 
 /* Футер с вводом сообщения */
 .chat-footer {
-    display: none; /* По умолчанию скрыт */
-    padding: 12px 15px;
-    background: #2d2d2d;
-    border-top: 1px solid #3a3a3a;
-    gap: 12px;
-    align-items: center;
-}
-
-.chat-footer.active {
-    display: flex; /* Показываем только когда есть активный чат */
+    display: flex;
+    padding: 10px;
+    background: #444;
+    border-top: 1px solid #555;
 }
 
 #message-input {
     flex-grow: 1;
-    padding: 12px;
+    padding: 10px;
     border: none;
-    border-radius: 8px;
+    border-radius: 5px;
     outline: none;
-    background: #3a3a3a;
-    color: #ffffff;
-    font-size: 14px;
-}
-
-#message-input::placeholder {
-    color: #888;
 }
 
 #send-button {
     background: #0084ff;
     color: white;
     border: none;
-    padding: 12px 20px;
-    border-radius: 8px;
+    padding: 10px 15px;
+    margin-left: 10px;
+    border-radius: 5px;
     cursor: pointer;
-    transition: background 0.2s;
-    font-weight: 500;
 }
 
 #send-button:hover {
     background: #0073e6;
-}
-
-#send-button:active {
-    background: #0062cc;
 }

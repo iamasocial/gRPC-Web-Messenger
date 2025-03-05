@@ -10,6 +10,8 @@ service ChatService {
     rpc ConnectToChat(ConnectRequest) returns (ConnectResponse);
     rpc DeleteChat(DeleteChatRequest) returns (DeleteChatResponse);
     rpc Chat(stream ChatMessage) returns (stream ChatResponse);
+    rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
+    rpc ReceiveMessages(ReceiveMessagesRequest) returns (stream ReceiveMessagesResponse);
 }
 
 message CreateChatRequest {
@@ -48,6 +50,26 @@ message ChatMessage {
 
 message ChatResponse {
     string senderusername = 1;
+    string content = 2;
+    int64 timestamp = 3;
+}
+
+message SendMessageRequest {
+    string content = 1;
+}
+
+message SendMessageResponse {
+    string senderUsername = 1;
+    string content = 2;
+    int64 timestamp = 3;
+}
+
+message ReceiveMessagesRequest {
+    string senderusername = 1;
+}
+
+message ReceiveMessagesResponse {
+    string senderUsername = 1;
     string content = 2;
     int64 timestamp = 3;
 }

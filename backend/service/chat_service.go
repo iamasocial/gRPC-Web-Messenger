@@ -15,7 +15,6 @@ import (
 	"sync"
 	"time"
 
-	// "golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -26,13 +25,17 @@ type ChatService interface {
 	Chat(stream pb.ChatService_ChatServer) error
 }
 
+type MessageStreamProvider interface {
+	GetReceiveChannel(username string) (chan *pb.ReceiveMessagesResponse, error)
+}
+
 type chatService struct {
 	pb.UnimplementedChatServiceServer
 	chatRepo      repository.ChatRepository
 	userRepo      repository.UserRepository
 	messageRepo   repository.MessageRepository
 	broker        broker.MessageBroker
-	streamManager manager.StreamManager
+	streamManager manager.StreamManager3
 }
 
 func NewChatService(
@@ -40,14 +43,13 @@ func NewChatService(
 	userRepo repository.UserRepository,
 	messageRepo repository.MessageRepository,
 	broker broker.MessageBroker,
-	streamManager manager.StreamManager,
 ) *chatService {
 	return &chatService{
 		chatRepo:      chatRepo,
 		userRepo:      userRepo,
 		messageRepo:   messageRepo,
 		broker:        broker,
-		streamManager: streamManager,
+		streamManager: manager.NewStreamManager3(),
 	}
 }
 
@@ -137,6 +139,9 @@ func (s *chatService) ConnectToChat(ctx context.Context, req *pb.ConnectRequest)
 		return nil, status.Errorf(codes.Unauthenticated, "User ID is missing in contenxt")
 	}
 
+	s.streamManager.ClearConnectionAndStream(senderId)
+	log.Printf("Connection and stream are cleared")
+
 	receiverUsername := req.GetReceiverusername()
 	if receiverUsername == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "Receiver username is required")
@@ -152,9 +157,9 @@ func (s *chatService) ConnectToChat(ctx context.Context, req *pb.ConnectRequest)
 		return nil, status.Errorf(codes.NotFound, "Chat with '%s' not found", receiverUsername)
 	}
 
-	err = s.streamManager.AddConnection(senderId, receiverUsername)
+	err = s.streamManager.AddConnection(senderId, receiver.ID)
 	if err != nil {
-		return nil, status.Errorf(codes.AlreadyExists, "Chat with '%s' already exists", receiverUsername)
+		return nil, status.Errorf(codes.AlreadyExists, "Chat with senderID=%d and receiverID=%d already exists", senderId, receiver.ID)
 	}
 
 	log.Printf("User %d connected to chat with receiver '%s'", senderId, receiverUsername)
@@ -164,37 +169,40 @@ func (s *chatService) ConnectToChat(ctx context.Context, req *pb.ConnectRequest)
 	}, nil
 }
 
+///////////////////////////////////// grpc bidi stream doesn't work in browser :(
+// do not delete
+
 func (s *chatService) Chat(stream pb.ChatService_ChatServer) error {
 	ctx := stream.Context()
-	senderID, ok := ctx.Value(middleware.TokenKey("user_id")).(uint64)
+	senderId, ok := ctx.Value(middleware.TokenKey("user_id")).(uint64)
 	if !ok {
 		return status.Errorf(codes.Unauthenticated, "user ID is missing in context")
 	}
 
-	receiverUsername, err := s.streamManager.GetReceiverUsername(senderID)
+	receiverId, err := s.streamManager.GetConnectionData(senderId)
 	if err != nil {
 		return status.Errorf(codes.NotFound, "connection error: %v", err)
 	}
 
-	receiver, err := s.userRepo.GetByUsername(ctx, receiverUsername)
-	if err != nil {
-		return status.Errorf(codes.NotFound, "receiver not found: %v", err)
-	}
-
-	senderUsername, err := s.userRepo.GetUserNameById(ctx, senderID)
+	senderUsername, err := s.userRepo.GetUserNameById(ctx, senderId)
 	if err != nil {
 		return status.Errorf(codes.NotFound, "failed to get sender username: %v", err)
 	}
 
-	s.streamManager.AddStream(senderID, stream)
-	defer s.streamManager.RemoveConnection(senderID)
+	receiverUsername, err := s.userRepo.GetUserNameById(ctx, receiverId)
+	if err != nil {
+		return status.Errorf(codes.NotFound, "failed to get receiver username: %v", err)
+	}
 
-	chatID, err := s.chatRepo.GetChatByUserIds(ctx, senderID, receiver.ID)
+	s.streamManager.AddStream(senderId, stream)
+	defer s.streamManager.ClearConnectionAndStream(senderId)
+
+	chatID, err := s.chatRepo.GetChatByUserIds(ctx, senderId, receiverId)
 	if err != nil {
 		return status.Errorf(codes.Internal, "error checking chat existence: %v", err)
 	}
 
-	log.Printf("User %d started chatting with user %d", senderID, receiver.ID)
+	log.Printf("User %d started chatting with user %d", senderId, receiverId)
 
 	messages, err := s.getHistory(stream.Context(), chatID)
 	if err != nil {
@@ -241,7 +249,7 @@ func (s *chatService) Chat(stream pb.ChatService_ChatServer) error {
 	}
 
 	func() {
-		defer log.Printf("Offline message processor for user %d stopped", senderID)
+		defer log.Printf("Offline message processor for user %d stopped", senderId)
 
 		receiverQueue := fmt.Sprintf("chat_queue_%s", senderUsername)
 
@@ -267,16 +275,16 @@ func (s *chatService) Chat(stream pb.ChatService_ChatServer) error {
 	for {
 		select {
 		case <-ctx.Done():
-			s.streamManager.RemoveConnection(senderID)
-			log.Printf("Chat session for user %d ended", senderID)
+			s.streamManager.ClearConnectionAndStream(senderId)
+			log.Printf("Chat session for userID=%d ended", senderId)
 			return nil
 
 		default:
 			req, err := stream.Recv()
 			if err != nil {
 				if errors.Is(ctx.Err(), context.Canceled) {
-					s.streamManager.RemoveConnection(senderID)
-					log.Printf("Stream closed by user %d", senderID)
+					s.streamManager.ClearConnectionAndStream(senderId)
+					log.Printf("Stream closed by user %d", senderId)
 					return nil
 				}
 				return status.Errorf(codes.Internal, "failed to receive message: %v", err)
@@ -289,8 +297,8 @@ func (s *chatService) Chat(stream pb.ChatService_ChatServer) error {
 
 			message := &entities.Message{
 				ChatID:     chatID,
-				SenderId:   senderID,
-				ReceiverId: receiver.ID,
+				SenderId:   senderId,
+				ReceiverId: receiverId,
 				Content:    content,
 				Timestamp:  time.Now(),
 			}
@@ -307,14 +315,14 @@ func (s *chatService) Chat(stream pb.ChatService_ChatServer) error {
 			messageWG.Add(1)
 			go func() {
 				defer messageWG.Done()
-				recvStream, err := s.streamManager.GetStream(receiver.ID)
+				recvStream, err := s.streamManager.GetStream(receiverId)
 				if err == nil {
 					if err := recvStream.Send(&pb.ChatResponse{
 						Senderusername: senderUsername,
 						Content:        content,
 						Timestamp:      message.Timestamp.Unix(),
 					}); err != nil {
-						log.Printf("Failed to send message to receiver %d: %v", receiver.ID, err)
+						log.Printf("Failed to send message to receiver %d: %v", receiverId, err)
 						s.broker.PublishMessage(senderUsername, receiverUsername, content, message.Timestamp)
 					}
 				} else {

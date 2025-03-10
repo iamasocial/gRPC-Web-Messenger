@@ -59,11 +59,16 @@ class WebSocketClient {
         this.messageHandlers.push(handler);
     }
 
+    removeMessageHandler() {
+        this.messageHandlers = [];
+    }
+
     close() {
         if (this.socket) {
             this.socket.close();
             this.socket = null;
         }
+        this.removeMessageHandler();
     }
 }
 

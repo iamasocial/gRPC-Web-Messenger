@@ -113,6 +113,10 @@ function createDateDivider(dateText) {
 function connectToChatHandler(receiverUsername) {
     stopChat();
 
+    const chatMessages = document.getElementById("chat-messages");
+    chatMessages.innerHTML = '';
+    lastDisplayedDate = '';
+
     connectToChat(receiverUsername, (err, success) => {
         if (err || !success) {
             alert("Не удалось подключиться к чату");
@@ -169,6 +173,9 @@ function resetChatView() {
     footer.classList.remove('active');
     document.getElementById('chat-title').textContent = 'Выберите чат';
     document.getElementById('message-input').value = '';
+
+    document.getElementById('chat-messages').innerHTML = '';
+    lastDisplayedDate = null;
 }
 
 window.addEventListener('popstate', (event) => {

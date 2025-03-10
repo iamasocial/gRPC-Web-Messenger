@@ -1,6 +1,6 @@
 import { chatClient } from "./client"; 
 import socket from "./websocket.js";
-import { GetChatsRequst, ConnectRequest } from "../../proto/chat_service_pb";
+import { GetChatsRequst, ConnectRequest, CreateChatRequest } from "../../proto/chat_service_pb";
 
 export function getChats(callback) {
     const token = localStorage.getItem('token');
@@ -73,4 +73,24 @@ export function chat(content) {
 
 export function stopChat() {
     socket.close();
+}
+
+export function createChat(username, callback) {
+    const token = localStorage.getItem("token");
+    if (!token) {
+        callback(new Error("Unathorized: No token found"), null)
+        return;
+    }
+
+    const request = new CreateChatRequest();
+    request.setUsername(username);
+    const metadata = { 'Authorization': `Bearer ${token}` };
+
+    chatClient.createChat(request, metadata, (err, response) => {
+        if (err) {
+            callback(err, null)
+            return;
+        }
+        callback(null, response.getUsername());
+    });
 }

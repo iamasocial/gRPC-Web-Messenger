@@ -1,4 +1,4 @@
-import { getChats, connectToChat, startChat, chat, stopChat } from "../api/chat";
+import { getChats, connectToChat, startChat, chat, stopChat, createChat } from "../api/chat";
 
 let currentChat = null;
 let lastDisplayedDate = null;
@@ -115,7 +115,7 @@ function connectToChatHandler(receiverUsername) {
 
     const chatMessages = document.getElementById("chat-messages");
     chatMessages.innerHTML = '';
-    lastDisplayedDate = '';
+    lastDisplayedDate = null;
 
     connectToChat(receiverUsername, (err, success) => {
         if (err || !success) {
@@ -178,6 +178,102 @@ function resetChatView() {
     lastDisplayedDate = null;
 }
 
+function handleCreateChat() {
+    const username = document.getElementById('new-chat-username').value.trim();
+
+    if (!username) {
+        showError('Введите имя пользователя');
+        return;
+    }
+
+    createChat(username, (err, createdUsername) => {
+        if (err) {
+            showError(`Ошибка создания чата: ${err.message}`);
+            return;
+        }
+
+        closeModal();
+        loadChats();
+        showSuccess(`Чат с ${createdUsername} создан`);
+    });
+}
+
+function initChatCreationModal() {
+    const modal = document.getElementById('create-chat-modal');
+    const newChatBtn = document.getElementById('new-chat-btn');
+
+    newChatBtn.addEventListener('click', () => {
+        resetModal();
+        modal.style.display = 'block';
+    });
+
+    // initAlgorithmButtons();
+    // initModesButtons();
+    // initPaddingButtons();
+    initOptionButtons()
+
+    document.getElementById('create-chat-submit').addEventListener('click', handleCreateChat);
+}
+
+function initOptionButtons() {
+    initOptionGroup('algorithm-select'); // Для алгоритмов
+    initOptionGroup('mode-select');     // Для режимов
+    initOptionGroup('padding-select');  // Для набивки
+}
+
+function initAlgorithmButtons() {
+    initOptionGroup('algorithm-select');
+}
+
+function initModesButtons() {
+    initOptionGroup('mode-select');
+}
+
+function initPaddingButtons() {
+    initOptionGroup('padding-select');
+}
+
+function initOptionGroup(groupId) {
+    const group = document.getElementById(groupId);
+
+    group.querySelectorAll(".option-btn").forEach(btn => {
+        btn.addEventListener('click', function() {
+            // Снимаем выделение со всех кнопок в группе
+            group.querySelectorAll('.option-btn').forEach(b => b.classList.remove('active'));
+            
+            // Добавляем выделение текущей кнопке
+            this.classList.add('active'); // <-- Добавлена эта строка
+            
+            // Можно добавить анимацию
+            this.style.transform = "scale(0.95)";
+            setTimeout(() => {
+                this.style.transform = "scale(1)";
+            }, 100);
+        });
+    });
+}
+
+function showError(message) {
+    alert('Ошибка: ' + message)
+}
+
+function showSuccess(message) {
+    alert("Успех: " + message)
+}
+
+
+
+function resetModal() {
+    document.getElementById('new-chat-username').value = '';
+    document.querySelectorAll('.option-btn.active').forEach(btn => {
+        btn.classList.remove('active');
+    });
+}
+
+function closeModal() {
+    document.getElementById('create-chat-modal').style.display = 'none';
+}
+
 window.addEventListener('popstate', (event) => {
     const urlParams = new URLSearchParams(window.location.search);
     const chatParam = urlParams.get('chat');
@@ -196,6 +292,11 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("chat-list").addEventListener('click', onChatClick);
     document.getElementById("send-button").addEventListener('click', onSendMessage);
     window.addEventListener("beforeunload", stopChat);
+
+    initChatCreationModal();
+    document.querySelectorAll('.close, #create-chat-cancel').forEach(btn => {
+        btn.addEventListener('click', closeModal)
+    })
 
     loadChats();
 })

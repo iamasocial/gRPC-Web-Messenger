@@ -8,14 +8,17 @@
 </head>
 <body>
     <div class="chats-container">
+        
         <aside class="sidebar">
             <header class="sidebar-header">
                 <h2>Чаты</h2>
+                <button id="new-chat-btn" class="sidebar-btn">+ Новый чат</button>
             </header>
             <div class="chat-list" id="chat-list">
                 <!-- Чаты будут добавляться сюда -->
             </div>
         </aside>
+
         <main class="chat-window">
             <header class="chat-header">
                 <h2 id="chat-title">Выберите чат</h2>
@@ -28,6 +31,54 @@
                 <button id="send-button">➤</button>
             </footer>
         </main>
+
+        <div id="create-chat-modal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h3>Создать новый чат</h3>
+                
+                <div class="form-group">
+                    <label>Имя пользователя:</label>
+                    <input type="text" id="new-chat-username" class="chat-input" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Алгоритм шифрования:</label>
+                    <div class="option-group" id="algorithm-select">
+                        <button type="button" class="option-btn">Camellia</button>
+                        <button type="button" class="option-btn">MAGENTA</button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Режим шифрования:</label>
+                    <div class="option-group" id="mode-select">
+                        <button type="button" class="option-btn">ECB</button>
+                        <button type="button" class="option-btn">CBC</button>
+                        <button type="button" class="option-btn">PCBC</button>
+                        <button type="button" class="option-btn">CFB</button>
+                        <button type="button" class="option-btn">OFB</button>
+                        <button type="button" class="option-btn">CTR</button>
+                        <button type="button" class="option-btn">Random Delta</button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Режим набивки:</label>
+                    <div class="option-group" id="padding-select">
+                        <button type="button" class="option-btn">Zeros</button>
+                        <button type="button" class="option-btn">ANSI X.923</button>
+                        <button type="button" class="option-btn">PKCS7</button>
+                        <button type="button" class="option-btn">ISO 10126</button>
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button id="create-chat-submit" class="btn-primary">Создать</button>
+                    <button id="create-chat-cancel" class="btn-secondary">Отмена</button>
+                </div>
+            </div>
+        </div>
     </div>
 </body>
 </html>

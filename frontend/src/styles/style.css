@@ -83,6 +83,37 @@ body {
     background: #333;
     display: flex;
     flex-direction: column;
+    padding: 10px;
+}
+
+.sidebar-header {
+    position: relative;
+    padding: 15px;
+    display: flex;          /* Добавить */
+    flex-direction: column; /* Добавить */
+    gap: 10px;             /* Добавить */
+}
+
+.sidebar-header h2 {
+    margin: 0;
+    order: 1;
+}
+
+.sidebar-btn {
+    width: 100%;
+    padding: 12px;
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.3s ease;
+    font-size: 14px;
+    order: 2; /* Перемещает кнопку под заголовок */
+}
+
+.sidebar-btn:hover {
+    background: #0056b3;
 }
 
 .sidebar-header {
@@ -250,4 +281,75 @@ body {
 
 #send-button:active {
     background: #0062cc;
+}
+
+/* Модальное окно */
+ .floating-btn {
+    display: none;
+ }
+
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 1000;
+}
+
+.modal-content {
+    background: white;
+    margin: 5% auto;
+    padding: 20px;
+    width: 500px;
+    border-radius: 8px;
+}
+
+.form-group {
+    margin: 15px 0;
+}
+
+.option-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 5px;
+}
+
+.option-btn {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #f8f9fa;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+}
+
+.option-btn.active {
+    transform: scale(0.98);
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.option-btn.active {
+    background: #007bff;
+    color: white;
+    border-color: #007bff;
+    box-shadow: 0 2px 8px rgba(0,123,255,0.3);
+}
+
+/* Индикатор выбора */
+.option-btn.active::after {
+    content: '✓';
+    margin-left: 8px;
+    font-weight: bold;
+}
+
+.modal-actions {
+    margin-top: 20px;
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
 }

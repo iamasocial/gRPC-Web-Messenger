@@ -124,6 +124,9 @@ function connectToChatHandler(receiverUsername) {
             return;
         }
 
+        const disconnectBtn = document.getElementById('disconnect-btn');
+        disconnectBtn.classList.add('active');
+
         currentChat = receiverUsername;
         document.getElementById("chat-title").textContent = `Чат с ${receiverUsername}`;
 
@@ -136,6 +139,8 @@ function connectToChatHandler(receiverUsername) {
         document.querySelectorAll('.chat-item').forEach(item => {
             item.classList.toggle('active', item.dataset.username === receiverUsername);
         });
+
+        // document.getElementById('disconnect-btn').style.display = 'block';
 
         const footer = document.querySelector('.chat-footer');
         footer.classList.add('active');
@@ -176,6 +181,9 @@ function resetChatView() {
 
     document.getElementById('chat-messages').innerHTML = '';
     lastDisplayedDate = null;
+    currentChat = null;
+
+    document.getElementById('disconnect-btn').classList.remove('active');
 }
 
 function handleCreateChat() {
@@ -207,9 +215,6 @@ function initChatCreationModal() {
         modal.style.display = 'block';
     });
 
-    // initAlgorithmButtons();
-    // initModesButtons();
-    // initPaddingButtons();
     initOptionButtons()
 
     document.getElementById('create-chat-submit').addEventListener('click', handleCreateChat);
@@ -219,18 +224,6 @@ function initOptionButtons() {
     initOptionGroup('algorithm-select'); // Для алгоритмов
     initOptionGroup('mode-select');     // Для режимов
     initOptionGroup('padding-select');  // Для набивки
-}
-
-function initAlgorithmButtons() {
-    initOptionGroup('algorithm-select');
-}
-
-function initModesButtons() {
-    initOptionGroup('mode-select');
-}
-
-function initPaddingButtons() {
-    initOptionGroup('padding-select');
 }
 
 function initOptionGroup(groupId) {
@@ -274,6 +267,28 @@ function closeModal() {
     document.getElementById('create-chat-modal').style.display = 'none';
 }
 
+function handleLogout() {
+    if (!confirm('Вы уверены, что хотите выйти?')) return;
+
+    localStorage.removeItem("token");
+
+    window.location.href = 'index.html'
+}
+
+function initDisconnectButton() {
+    const disconnectBtn = document.getElementById('disconnect-btn');
+    disconnectBtn.addEventListener('click', handleDisconnect);
+}
+
+function handleDisconnect() {
+    if (confirm('Вы уверены, что хотите отключиться от чата?')) {
+        stopChat();
+        resetChatView();
+        window.history.pushState({}, '', window.location.pathname);
+        loadChats();
+    }
+}
+
 window.addEventListener('popstate', (event) => {
     const urlParams = new URLSearchParams(window.location.search);
     const chatParam = urlParams.get('chat');
@@ -285,12 +300,19 @@ window.addEventListener('popstate', (event) => {
         resetChatView();
         document.getElementById("chat-title").textContent = "Выберите чат";
         currentChat = null;
+        document.getElementById('disconect-btn').classList.remove('active');
     }
 });
 
 document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById('disconnect-btn').classList.remove('active');
+    const urlParams = new URLSearchParams(window.location.search);
+    if (!urlParams.has('chat')) {
+        document.getElementById('disconnect-btn').classList.remove('active');
+    }
     document.getElementById("chat-list").addEventListener('click', onChatClick);
     document.getElementById("send-button").addEventListener('click', onSendMessage);
+    document.getElementById('logout-btn').addEventListener('click', handleLogout)
     window.addEventListener("beforeunload", stopChat);
 
     initChatCreationModal();
@@ -299,5 +321,6 @@ document.addEventListener("DOMContentLoaded", () => {
     })
 
     loadChats();
+    initDisconnectButton();
 })
 

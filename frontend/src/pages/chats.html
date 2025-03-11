@@ -14,18 +14,34 @@
                 <h2>Чаты</h2>
                 <button id="new-chat-btn" class="sidebar-btn">+ Новый чат</button>
             </header>
+
             <div class="chat-list" id="chat-list">
                 <!-- Чаты будут добавляться сюда -->
+            </div>
+
+            <div class="sidebar-footer">
+                <button id="logout-btn" class="logout-btn">
+                    <span class="icon">🚪</span>
+                    Выйти
+                </button>
             </div>
         </aside>
 
         <main class="chat-window">
             <header class="chat-header">
-                <h2 id="chat-title">Выберите чат</h2>
+                <!-- <div class="header-content"> -->
+                    <h2 id="chat-title">Выберите чат</h2>
+                    <button id="disconnect-btn" class="disconnect-btn">
+                        <span class="disconnect-icon">🚫</span>
+                        Закрыть чат
+                    </button>
+                <!-- </div> -->
             </header>
+
             <div class="chat-messages" id="chat-messages">
                 <!-- Сообщения будут добавляться сюда -->
             </div>
+
             <footer class="chat-footer">
                 <input type="text" id="message-input" placeholder="Напишите сообщение...">
                 <button id="send-button">➤</button>

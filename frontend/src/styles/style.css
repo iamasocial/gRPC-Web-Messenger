@@ -125,6 +125,35 @@ body {
     border-bottom: 1px solid #555;
 }
 
+.sidebar-footer {
+    padding: 15px;
+    border-top: 1px solid #555;
+    background: #444;
+}
+
+.logout-btn {
+    width: 100%;
+    padding: 12px;
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: background 0.3s;
+}
+
+.logout-btn:hover {
+    background: #bb2d3b;
+}
+
+.logout-btn .icon {
+    font-size: 18px;
+}
+
 .chat-list {
     flex-grow: 1;
     overflow-y: auto;
@@ -153,14 +182,64 @@ body {
     /* background: #2d2d2d; */
 }
 
-.chat-header {
+/* .chat-header {
     background: #444;
     padding: 15px;
     text-align: center;
+    justify-content: space-between;
     font-size: 18px;
     font-weight: bold;
     border-bottom: 1px solid #555;
+} */
+
+.chat-header {
+    background: #444;
+    padding: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+    border-bottom: 1px solid #555;
 }
+
+
+.disconnect-btn {
+    display: none; /* По умолчанию скрыта */
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 15px;
+    cursor: pointer;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+    position: absolute;
+    right: 15px;
+}
+
+.disconnect-btn.active {
+    display: flex;
+}
+
+/* Удаляем абсолютное позиционирование и правый отступ */
+.disconnect-btn {
+    position: static;
+    right: auto;
+}
+
+/* .disconnect-btn:hover {
+    background: #bb2d3b;
+    transform: translateY(-1px);
+} */
+
+/* .disconnect-btn.active { */
+    /* display: block; Показываем только когда есть активный чат */
+/* } */
+
+/* .disconnect-icon {
+    font-size: 16px;
+} */
 
 .chat-messages {
     flex-grow: 1;
@@ -353,3 +432,4 @@ body {
     gap: 10px;
     justify-content: flex-end;
 }
+

@@ -20,7 +20,7 @@ export function login(username, password, callback) {
 export function register(username, password, confirmPassword, callback) {
     const request = new RegisterRequest();
     request.setUsername(username);
-    request.setPassword(username);
+    request.setPassword(password);
     request.setConfirmpassword(confirmPassword);
     console.log(password, confirmPassword);
 

@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"gRPCWebServer/backend/entities"
 
 	"github.com/jmoiron/sqlx"
 )
@@ -13,6 +14,8 @@ type ChatRepository interface {
 	GetChatsByUserId(ctx context.Context, userId uint64) ([]string, error)
 	SendMessage(ctx context.Context, chatId, senderId uint64, content string) error
 	DeleteChat(ctx context.Context, chatId uint64) error
+	GetChatByUsername(ctx context.Context, username string) (*entities.Chat, error)
+	GetChatByID(ctx context.Context, chatID uint64) (*entities.Chat, error)
 }
 
 type chatRepository struct {
@@ -94,4 +97,40 @@ func (cr *chatRepository) SendMessage(ctx context.Context, chatId, senderId uint
 	}
 
 	return nil
+}
+
+func (cr *chatRepository) GetChatByUsername(ctx context.Context, username string) (*entities.Chat, error) {
+	query := `
+	SELECT 
+		c.id, c.user_1_id as first_user_id, c.user_2_id as second_user_id,
+		u1.username as first_username, u2.username as second_username
+	FROM chats c
+	JOIN users u1 ON u1.id = c.user_1_id
+	JOIN users u2 ON u2.id = c.user_2_id
+	WHERE u1.username = $1 OR u2.username = $1`
+
+	var chat entities.Chat
+	if err := cr.db.GetContext(ctx, &chat, query, username); err != nil {
+		return nil, fmt.Errorf("failed to get chat by username: %w", err)
+	}
+
+	return &chat, nil
+}
+
+func (cr *chatRepository) GetChatByID(ctx context.Context, chatID uint64) (*entities.Chat, error) {
+	query := `
+	SELECT 
+		c.id, c.user_1_id as first_user_id, c.user_2_id as second_user_id,
+		u1.username as first_username, u2.username as second_username
+	FROM chats c
+	JOIN users u1 ON u1.id = c.user_1_id
+	JOIN users u2 ON u2.id = c.user_2_id
+	WHERE c.id = $1`
+
+	var chat entities.Chat
+	if err := cr.db.GetContext(ctx, &chat, query, chatID); err != nil {
+		return nil, fmt.Errorf("failed to get chat by ID: %w", err)
+	}
+
+	return &chat, nil
 }

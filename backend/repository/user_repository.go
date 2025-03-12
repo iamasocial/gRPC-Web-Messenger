@@ -14,6 +14,7 @@ type UserRepository interface {
 	Create(ctx context.Context, user entities.User) (uint64, error)
 	GetByUsername(ctx context.Context, username string) (*entities.User, error)
 	GetUserNameById(ctx context.Context, userId uint64) (string, error)
+	GetByID(ctx context.Context, userID uint64) (*entities.User, error)
 }
 
 type userRepo struct {
@@ -58,4 +59,18 @@ func (ur *userRepo) GetUserNameById(ctx context.Context, userId uint64) (string,
 	}
 
 	return username, nil
+}
+
+func (ur *userRepo) GetByID(ctx context.Context, userID uint64) (*entities.User, error) {
+	var user entities.User
+	query := `SELECT id, username, password_hash FROM users WHERE id = $1`
+
+	err := ur.db.GetContext(ctx, &user, query, userID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, sql.ErrNoRows
+		}
+		return nil, fmt.Errorf("failed to get user by ID: %v", err)
+	}
+	return &user, nil
 }

@@ -8,6 +8,7 @@ import (
 	"gRPCWebServer/backend/storage"
 	"gRPCWebServer/backend/transport"
 	"log"
+	"os"
 )
 
 func main() {
@@ -31,16 +32,26 @@ func main() {
 	// streamManager := manager.NewStreamManager()
 	// streamManager := manager.NewStreamManager2()
 
+	// Создаем базовый каталог для файлов
+	baseFilePath := "./files"
+	os.MkdirAll(baseFilePath, 0755)
+
+	// Инициализируем репозитории
 	userRepo := repository.NewUserRepo(db)
 	chatRepo := repository.NewChatRepository(db)
 	messageRepo := repository.NewMessageRepository(db)
+	fileRepo := repository.NewFileRepository(db)
+
+	// Инициализируем сервисы
 	userService := service.NewUserService(userRepo)
 	chatService := service.NewChatService(chatRepo, userRepo, messageRepo, broker)
+	fileService := service.NewFileService(fileRepo, userRepo, chatRepo, baseFilePath)
+
 	websocket := transport.NewWebSocketHandler()
 	srv := server.NewServer(websocket)
 	// srv := server.NewServer()
 
-	srv.RegisterServices(userService, chatService)
+	srv.RegisterServices(userService, chatService, fileService)
 
 	if err := srv.Start(":50051", ":8888"); err != nil {
 		log.Fatalf("failed to start server: %v", err)

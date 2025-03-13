@@ -86,6 +86,37 @@ body {
     background: #333;
     display: flex;
     flex-direction: column;
+    padding: 10px;
+}
+
+.sidebar-header {
+    position: relative;
+    padding: 15px;
+    display: flex;          /* Добавить */
+    flex-direction: column; /* Добавить */
+    gap: 10px;             /* Добавить */
+}
+
+.sidebar-header h2 {
+    margin: 0;
+    order: 1;
+}
+
+.sidebar-btn {
+    width: 100%;
+    padding: 12px;
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.3s ease;
+    font-size: 14px;
+    order: 2; /* Перемещает кнопку под заголовок */
+}
+
+.sidebar-btn:hover {
+    background: #0056b3;
 }
 
 .sidebar-header {
@@ -95,6 +126,35 @@ body {
     font-size: 18px;
     font-weight: bold;
     border-bottom: 1px solid #555;
+}
+
+.sidebar-footer {
+    padding: 15px;
+    border-top: 1px solid #555;
+    background: #444;
+}
+
+.logout-btn {
+    width: 100%;
+    padding: 12px;
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: background 0.3s;
+}
+
+.logout-btn:hover {
+    background: #bb2d3b;
+}
+
+.logout-btn .icon {
+    font-size: 18px;
 }
 
 .chat-list {
@@ -125,14 +185,64 @@ body {
     /* background: #2d2d2d; */
 }
 
-.chat-header {
+/* .chat-header {
     background: #444;
     padding: 15px;
     text-align: center;
+    justify-content: space-between;
     font-size: 18px;
     font-weight: bold;
     border-bottom: 1px solid #555;
+} */
+
+.chat-header {
+    background: #444;
+    padding: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+    border-bottom: 1px solid #555;
 }
+
+
+.disconnect-btn {
+    display: none; /* По умолчанию скрыта */
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 15px;
+    cursor: pointer;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+    position: absolute;
+    right: 15px;
+}
+
+.disconnect-btn.active {
+    display: flex;
+}
+
+/* Удаляем абсолютное позиционирование и правый отступ */
+.disconnect-btn {
+    position: static;
+    right: auto;
+}
+
+/* .disconnect-btn:hover {
+    background: #bb2d3b;
+    transform: translateY(-1px);
+} */
+
+/* .disconnect-btn.active { */
+    /* display: block; Показываем только когда есть активный чат */
+/* } */
+
+/* .disconnect-icon {
+    font-size: 16px;
+} */
 
 .chat-messages {
     flex-grow: 1;
@@ -155,6 +265,8 @@ body {
     word-wrap: break-word;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     margin: 8px 0;
+    box-sizing: border-box;
+    overflow: hidden;
 }
 
 .message.sent {
@@ -169,6 +281,32 @@ body {
     align-self: flex-start;
     border-bottom-left-radius: 4px;
     margin-left: 8px;
+}
+
+/* Специальные стили для сообщений с изображениями */
+.message.image-message {
+    padding: 8px;
+    max-width: 400px;
+    width: 65%;
+}
+
+.message.image-message .message-content.with-file {
+    padding: 2px;
+}
+
+.message.image-message .message-file {
+    overflow: hidden;
+    border-radius: 6px;
+    text-align: center;
+    max-width: 100%;
+}
+
+.message.image-message.sent {
+    align-self: flex-end;
+}
+
+.message.image-message.received {
+    align-self: flex-start;
 }
 
 .message-content {
@@ -256,18 +394,9 @@ body {
 }
 
 /* Модальное окно */
-.floating-btn {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    padding: 15px 25px;
-    border-radius: 25px;
-    background: #007bff;
-    color: white;
-    border: none;
-    cursor: pointer;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-}
+ .floating-btn {
+    display: none;
+ }
 
 .modal {
     display: none;
@@ -306,12 +435,26 @@ body {
     background: #f8f9fa;
     cursor: pointer;
     transition: all 0.2s;
+    position: relative;
+}
+
+.option-btn.active {
+    transform: scale(0.98);
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
 }
 
 .option-btn.active {
     background: #007bff;
     color: white;
     border-color: #007bff;
+    box-shadow: 0 2px 8px rgba(0,123,255,0.3);
+}
+
+/* Индикатор выбора */
+.option-btn.active::after {
+    content: '✓';
+    margin-left: 8px;
+    font-weight: bold;
 }
 
 .modal-actions {
@@ -320,3 +463,479 @@ body {
     gap: 10px;
     justify-content: flex-end;
 }
+
+/* Добавляем стили для работы с файлами */
+.file-upload-container {
+    display: flex;
+    align-items: center;
+}
+
+.file-button {
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    color: #555;
+    margin-right: 10px;
+    transition: color 0.3s;
+}
+
+.file-button:hover {
+    color: #1e88e5;
+}
+
+/* Стили для файлов в сообщениях */
+.message-file {
+    display: flex;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.05);
+    border-radius: 6px;
+    padding: 10px;
+    margin-bottom: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.message-file:hover {
+    background-color: rgba(0, 0, 0, 0.1);
+}
+
+.file-icon {
+    font-size: 24px;
+    margin-right: 10px;
+    color: #555;
+}
+
+.file-details {
+    flex-grow: 1;
+}
+
+.file-name {
+    font-weight: 500;
+    margin-bottom: 2px;
+}
+
+.file-size {
+    font-size: 12px;
+    color: #777;
+}
+
+/* Стили для модальных окон с файлами */
+.file-preview-container {
+    padding: 20px;
+    background-color: #f5f5f5;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.file-info {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.file-preview-icon {
+    font-size: 32px;
+    margin-right: 15px;
+    color: #1e88e5;
+}
+
+.file-preview-name {
+    font-weight: 500;
+    font-size: 16px;
+    margin-bottom: 3px;
+}
+
+.file-preview-size {
+    font-size: 12px;
+    color: #777;
+}
+
+.file-preview-content {
+    max-width: 100%;
+    text-align: center;
+}
+
+.file-preview-content img {
+    max-width: 100%;
+    max-height: 300px;
+    border-radius: 4px;
+}
+
+.file-view-container {
+    max-width: 100%;
+    max-height: 70vh;
+    overflow: auto;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.file-view-container img {
+    max-width: 100%;
+    border-radius: 4px;
+}
+
+/* Индикатор загрузки */
+.upload-progress {
+    height: 4px;
+    width: 100%;
+    background-color: #e0e0e0;
+    margin-top: 10px;
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.upload-progress-bar {
+    height: 100%;
+    background-color: #1e88e5;
+    width: 0;
+    transition: width 0.3s;
+}
+
+/* Стили для сообщений с файлами */
+.message-content.with-file {
+    display: flex;
+    flex-direction: column;
+}
+
+.message-text.with-file {
+    margin-bottom: 8px;
+}
+
+.message.received .message-file {
+    background-color: rgba(255, 255, 255, 0.8);
+}
+
+.message.sent .message-file {
+    background-color: rgba(30, 136, 229, 0.1);
+}
+
+/* Стили для блоков кода */
+.code-block {
+    background-color: rgba(30, 30, 30, 0.9);
+    color: #f0f0f0;
+    padding: 10px;
+    border-radius: 6px;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    overflow-x: auto;
+    max-width: 100%;
+    white-space: pre-wrap;
+    margin: 6px 0;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    text-align: left;
+    max-height: 300px;
+    overflow-y: auto;
+    position: relative;
+    transition: max-height 0.3s ease;
+    cursor: pointer;
+}
+
+/* Индикатор для длинных блоков кода */
+.code-block:not(.expanded)::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 30px;
+    background: linear-gradient(rgba(30, 30, 30, 0), rgba(30, 30, 30, 0.9));
+    pointer-events: none;
+    opacity: 0.8;
+    border-bottom-left-radius: 6px;
+    border-bottom-right-radius: 6px;
+    transition: opacity 0.3s ease;
+}
+
+/* Стили при разворачивании блока кода */
+.code-block.expanded {
+    max-height: 800px;
+}
+
+.code-block.expanded::after {
+    opacity: 0;
+}
+
+.message-with-code.expanded {
+    max-height: none !important;
+}
+
+/* Анимация при разворачивании */
+.message-with-code, .code-block {
+    transition: max-height 0.3s ease;
+}
+
+/* Специальные стили для SQL кода */
+.sql-code {
+    border-left: 3px solid #4CAF50;
+}
+
+.sql-keyword {
+    color: #569CD6;
+    font-weight: bold;
+}
+
+.sql-string {
+    color: #CE9178;
+}
+
+.sql-number {
+    color: #B5CEA8;
+}
+
+/* Дополнительные стили для кода в сообщениях */
+.message-text pre {
+    margin-bottom: 10px;
+}
+
+.message-with-code .message-content {
+    max-width: 100%;
+}
+
+.message.received .sql-keyword {
+    color: #4FC3F7;
+}
+
+.message.sent .sql-keyword {
+    color: #81D4FA;
+}
+
+.message.sent .sql-string {
+    color: #FFD54F;
+}
+
+.message.sent .sql-number {
+    color: #FFECB3;
+}
+
+/* Стиль для сообщений, содержащих код */
+.message-with-code {
+    max-width: 85%;
+    overflow: visible !important;
+}
+
+/* Увеличиваем ширину сообщений с кодом */
+@media screen and (min-width: 768px) {
+    .message-with-code {
+        max-width: 85%;
+    }
+    
+    .message-with-code .message-content {
+        flex-direction: column !important;
+    }
+    
+    .message-with-code .message-text {
+        margin-bottom: 8px;
+        width: 100%;
+    }
+    
+    .message-with-code .message-time {
+        align-self: flex-end;
+        margin-top: 5px;
+    }
+}
+
+.message-with-code .code-block {
+    max-height: none !important;
+}
+
+/* Стили для различных языков программирования */
+.js-code, .javascript-code {
+    border-left: 3px solid #F0DB4F;
+}
+
+.py-code, .python-code {
+    border-left: 3px solid #3572A5;
+}
+
+.go-code {
+    border-left: 3px solid #00ADD8;
+}
+
+.json-code {
+    border-left: 3px solid #F0AD4E;
+}
+
+.html-code {
+    border-left: 3px solid #E34C26;
+}
+
+.css-code {
+    border-left: 3px solid #563D7C;
+}
+
+/* Добавляем подсказку для разворачивания кода */
+.code-block:not(.expanded)::before {
+    content: "Нажмите, чтобы развернуть";
+    position: absolute;
+    bottom: 5px;
+    right: 10px;
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.7);
+    background: rgba(30, 30, 30, 0.8);
+    padding: 2px 6px;
+    border-radius: 4px;
+    z-index: 10;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.code-block:not(.expanded):hover::before {
+    opacity: 1;
+}
+
+/* Указатель при наведении */
+.code-block:hover {
+    background-color: rgba(40, 40, 40, 0.95);
+}
+
+/* Улучшения для блоков SQL */
+.sql-code .sql-keyword {
+    margin-right: 3px;
+}
+
+/* Выравнивание текста времени в сообщениях с кодом */
+.message-with-code .message-time {
+    margin-left: auto;
+}
+
+/* Улучшения для адаптивности блоков кода */
+@media screen and (max-width: 768px) {
+    .code-block {
+        font-size: 12px;
+        padding: 8px;
+        max-height: 250px;
+    }
+    
+    .message-with-code {
+        max-width: 90% !important;
+    }
+}
+
+@media screen and (max-width: 576px) {
+    .code-block {
+        font-size: 11px;
+        padding: 6px;
+        max-height: 200px;
+    }
+    
+    .message-with-code {
+        max-width: 95% !important;
+    }
+}
+
+/* Стили для изображений в сообщениях */
+.image-message .image-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    margin: 0 auto;
+    max-width: 100%;
+    background-color: rgba(0, 0, 0, 0.05);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.chat-image {
+    display: block;
+    max-width: 100%;
+    width: auto;
+    height: auto;
+    max-height: 300px;
+    margin: 0 auto;
+    border-radius: 5px;
+    object-fit: contain;
+}
+
+/* Улучшение для разных типов изображений */
+.wide-image .chat-image {
+    width: 100%;
+    max-height: 200px;
+    object-fit: contain;
+}
+
+.tall-image .chat-image {
+    height: auto;
+    max-height: 300px;
+    max-width: 100%;
+    object-fit: contain;
+}
+
+.image-caption {
+    padding: 3px 6px;
+    font-size: 0.75rem;
+    color: #999;
+    text-align: right;
+}
+
+/* Исправляем контейнер сообщения для лучшего отображения изображений */
+.message-content.with-file {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.message-file {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    margin: 0;
+    position: relative;
+}
+
+/* Адаптивность для маленьких экранов */
+@media screen and (max-width: 768px) {
+    .message.image-message {
+        max-width: 350px;
+        width: 75%;
+    }
+    
+    .chat-image {
+        max-height: 250px;
+    }
+}
+
+@media screen and (max-width: 576px) {
+    .message.image-message {
+        max-width: 280px;
+        width: 85%;
+    }
+    
+    .chat-image {
+        max-height: 200px;
+    }
+}
+
+/* Стили для модального просмотра изображений */
+#file-view-modal .modal-content {
+    background-color: #1a1a1a;
+    color: white;
+    max-width: 95%;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 0;
+    border-radius: 10px;
+}
+
+#file-view-container {
+    overflow: auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    max-height: 80vh;
+}
+
+.full-size-image {
+    max-width: 98%;
+    border-radius: 5px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+

@@ -12,21 +12,41 @@
         <aside class="sidebar">
             <header class="sidebar-header">
                 <h2>Чаты</h2>
-                <button id="new-chat-btn" class="floating-btn">+ Новый чат</button>
+                <button id="new-chat-btn" class="sidebar-btn">+ Новый чат</button>
             </header>
+
             <div class="chat-list" id="chat-list">
                 <!-- Чаты будут добавляться сюда -->
+            </div>
+
+            <div class="sidebar-footer">
+                <button id="logout-btn" class="logout-btn">
+                    <span class="icon">🚪</span>
+                    Выйти
+                </button>
             </div>
         </aside>
 
         <main class="chat-window">
             <header class="chat-header">
-                <h2 id="chat-title">Выберите чат</h2>
+                <!-- <div class="header-content"> -->
+                    <h2 id="chat-title">Выберите чат</h2>
+                    <button id="disconnect-btn" class="disconnect-btn">
+                        <!-- <span class="disconnect-icon">🚫</span> -->
+                        Закрыть чат
+                    </button>
+                <!-- </div> -->
             </header>
+
             <div class="chat-messages" id="chat-messages">
                 <!-- Сообщения будут добавляться сюда -->
             </div>
+
             <footer class="chat-footer">
+                <div class="file-upload-container">
+                    <input type="file" id="file-input" hidden>
+                    <button id="file-button" class="file-button">📎</button>
+                </div>
                 <input type="text" id="message-input" placeholder="Напишите сообщение...">
                 <button id="send-button">➤</button>
             </footer>
@@ -76,6 +96,50 @@
                 <div class="modal-actions">
                     <button id="create-chat-submit" class="btn-primary">Создать</button>
                     <button id="create-chat-cancel" class="btn-secondary">Отмена</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Модальное окно для предпросмотра файла -->
+        <div id="file-preview-modal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h3>Отправить файл</h3>
+                
+                <div class="file-preview-container">
+                    <div class="file-info">
+                        <div id="file-preview-icon" class="file-preview-icon">📄</div>
+                        <div class="file-details">
+                            <div id="file-preview-name" class="file-preview-name">filename.ext</div>
+                            <div id="file-preview-size" class="file-preview-size">0 KB</div>
+                        </div>
+                    </div>
+                    
+                    <div class="file-preview-content" id="file-preview-content">
+                        <!-- Здесь будет предпросмотр содержимого файла, если это изображение -->
+                    </div>
+                </div>
+                
+                <div class="modal-actions">
+                    <button id="send-file-button" class="btn-primary">Отправить</button>
+                    <button id="cancel-file-button" class="btn-secondary">Отмена</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Модальное окно для просмотра файла -->
+        <div id="file-view-modal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h3 id="file-view-name">Файл</h3>
+                
+                <div class="file-view-container" id="file-view-container">
+                    <!-- Здесь будет содержимое файла -->
+                </div>
+                
+                <div class="modal-actions">
+                    <button id="download-file-button" class="btn-primary">Скачать</button>
+                    <button id="close-file-view-button" class="btn-secondary">Закрыть</button>
                 </div>
             </div>
         </div>

@@ -13,8 +13,10 @@
             <h2>Вход</h2>
             <input type="text" id="login-username" class="input-field" placeholder="Имя пользователя" required>
             <input type="password" id="login-password" class="input-field" placeholder="Пароль" required>
-            <button class="submit-btn" onclick="login()">Войти</button>
-            <p class="toggle-link">Нет аккаунта? <a href="#" onclick="toggleForms()">Зарегестрироваться</a></p>
+            <!-- <button class="submit-btn" onclick="login()">Войти</button> -->
+             <button class="submit-btn" id="login-btn">Войти</button>
+            <!-- <p class="toggle-link">Нет аккаунта? <a href="#" onclick="toggleForms()">Зарегестрироваться</a></p> -->
+             <p class="toggle-link">Нет аккаунта? <a href="#" id="show-register">Зарегестрироваться</a></p>
         </div>
 
         <div id="register-form" class="form hidden">
@@ -22,8 +24,10 @@
             <input type="text" id="register-username" class="input-field" placeholder="Имя пользователя" required>
             <input type="password" id="register-password" class="input-field" placeholder="Пароль" required>
             <input type="password" id="register-confirm-password" class="input-field" placeholder="Подтвердите пароль" required>
-            <button class="submit-btn" onclick="register()">Зарегестрироваться</button>
-            <p class="toggle-link">Уже есть аккаунт? <a href="#" onclick="toggleForms()">Войти</a></p>
+            <!-- <button class="submit-btn" onclick="register()">Зарегестрироваться</button> -->
+             <button class="submit-btn" id="register-btn">Зарегестрироваться</button>
+             <p class="toggle-link">Уже есть аккаунт? <a href="#" id="show-login">Войти</a></p>
+            <!-- <p class="toggle-link">Уже есть аккаунт? <a href="#" onclick="toggleForms()">Войти</a></p> -->
         </div>
         
     </div>

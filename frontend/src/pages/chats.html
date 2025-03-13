@@ -43,6 +43,10 @@
             </div>
 
             <footer class="chat-footer">
+                <div class="file-upload-container">
+                    <input type="file" id="file-input" hidden>
+                    <button id="file-button" class="file-button">📎</button>
+                </div>
                 <input type="text" id="message-input" placeholder="Напишите сообщение...">
                 <button id="send-button">➤</button>
             </footer>
@@ -92,6 +96,50 @@
                 <div class="modal-actions">
                     <button id="create-chat-submit" class="btn-primary">Создать</button>
                     <button id="create-chat-cancel" class="btn-secondary">Отмена</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Модальное окно для предпросмотра файла -->
+        <div id="file-preview-modal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h3>Отправить файл</h3>
+                
+                <div class="file-preview-container">
+                    <div class="file-info">
+                        <div id="file-preview-icon" class="file-preview-icon">📄</div>
+                        <div class="file-details">
+                            <div id="file-preview-name" class="file-preview-name">filename.ext</div>
+                            <div id="file-preview-size" class="file-preview-size">0 KB</div>
+                        </div>
+                    </div>
+                    
+                    <div class="file-preview-content" id="file-preview-content">
+                        <!-- Здесь будет предпросмотр содержимого файла, если это изображение -->
+                    </div>
+                </div>
+                
+                <div class="modal-actions">
+                    <button id="send-file-button" class="btn-primary">Отправить</button>
+                    <button id="cancel-file-button" class="btn-secondary">Отмена</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Модальное окно для просмотра файла -->
+        <div id="file-view-modal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h3 id="file-view-name">Файл</h3>
+                
+                <div class="file-view-container" id="file-view-container">
+                    <!-- Здесь будет содержимое файла -->
+                </div>
+                
+                <div class="modal-actions">
+                    <button id="download-file-button" class="btn-primary">Скачать</button>
+                    <button id="close-file-view-button" class="btn-secondary">Закрыть</button>
                 </div>
             </div>
         </div>

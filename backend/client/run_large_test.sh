@@ -1,92 +1,100 @@
 #!/bin/bash
 
-# Компилируем клиент
-echo "Компиляция клиента..."
-go build -o client
-
-if [ $? -ne 0 ]; then
-    echo "Ошибка компиляции! Выход."
+# Функция для очистки и выхода при ошибке
+cleanup_and_exit() {
+    echo "Ошибка: $1"
     exit 1
+}
+
+echo "Компиляция клиента..."
+# Компиляция клиента
+if ! go build -o client .; then
+    cleanup_and_exit "Не удалось скомпилировать клиент"
 fi
 
-# Проверяем, работает ли сервер
-echo "Проверяем доступность сервера..."
-(echo > /dev/tcp/localhost/50051) >/dev/null 2>&1
-if [ $? -ne 0 ]; then
-    echo "Сервер не доступен на порту 50051. Убедитесь, что сервер запущен."
-    echo "Вы можете запустить сервер командой: cd ../docker && docker-compose up -d"
-    exit 1
+echo "Проверка доступности сервера..."
+# Проверка доступности сервера
+if ! timeout 1 bash -c "echo > /dev/tcp/localhost/50051" 2>/dev/null; then
+    cleanup_and_exit "Сервер недоступен на порту 50051"
 fi
 
 echo "Примечание: Для работы тестов пользователь 'sas' должен существовать с паролем 'qwerty'."
 
-# Создаем директорию для скачанных файлов
-mkdir -p downloads
+# Создание тестового файла, если его нет
+TEST_FILE="very_large_test_file.bin"
 
-# Проверяем, существует ли тестовый файл
-if [ ! -f "large_test_file.bin" ]; then
-    echo "Создаем тестовый файл размером 10 МБ..."
-    dd if=/dev/urandom of=large_test_file.bin bs=1M count=10
+echo
+echo "===== ТЕСТИРОВАНИЕ ЗАГРУЗКИ БОЛЬШОГО ФАЙЛА (100MB) ====="
+
+# Замеряем время загрузки файла
+echo "Загрузка файла на сервер..."
+UPLOAD_START_TIME=$(date +%s.%N)
+./client -upload -file "$TEST_FILE" || cleanup_and_exit "Ошибка при загрузке файла"
+UPLOAD_END_TIME=$(date +%s.%N)
+UPLOAD_DURATION=$(echo "$UPLOAD_END_TIME - $UPLOAD_START_TIME" | bc)
+UPLOAD_SPEED=$(echo "scale=2; ${TEST_FILE_SIZE:-104857600} / 1024 / 1024 / $UPLOAD_DURATION" | bc)
+echo "Время загрузки: $UPLOAD_DURATION секунд"
+echo "Скорость загрузки: $UPLOAD_SPEED МБ/с"
+
+# Получение списка файлов
+echo "Получение списка файлов..."
+TEMP_LIST_FILE=$(mktemp)
+./client -list > "$TEMP_LIST_FILE" 2>&1 || cleanup_and_exit "Ошибка при получении списка файлов"
+cat "$TEMP_LIST_FILE"
+
+# Извлечение ID файла из списка
+FIRST_FILE_LINE=$(grep "$TEST_FILE" "$TEMP_LIST_FILE" | head -1)
+echo "Строка с первым файлом: $FIRST_FILE_LINE"
+
+# Извлечение ID файла с помощью grep и sed
+FILE_ID=$(echo "$FIRST_FILE_LINE" | grep -o "ID: [0-9a-zA-Z\-]*" | sed 's/ID: //')
+echo "Извлеченный ID файла: $FILE_ID"
+
+if [ -z "$FILE_ID" ]; then
+    cleanup_and_exit "Не удалось извлечь ID файла из списка"
 fi
 
-echo ""
-echo "===== ТЕСТИРОВАНИЕ ЗАГРУЗКИ БОЛЬШОГО ФАЙЛА ====="
-UPLOAD_OUTPUT=$(./client -upload -file large_test_file.bin)
-echo "$UPLOAD_OUTPUT"
+# Замеряем время скачивания файла
+OUTPUT_DIR="downloaded_very_large_test_file"
+mkdir -p "$OUTPUT_DIR"
+echo "Скачивание файла с ID: $FILE_ID в $OUTPUT_DIR"
+DOWNLOAD_START_TIME=$(date +%s.%N)
+./client -download -id "$FILE_ID" -output "$OUTPUT_DIR" || cleanup_and_exit "Ошибка при скачивании файла"
+DOWNLOAD_END_TIME=$(date +%s.%N)
+DOWNLOAD_DURATION=$(echo "$DOWNLOAD_END_TIME - $DOWNLOAD_START_TIME" | bc)
+DOWNLOAD_SPEED=$(echo "scale=2; ${TEST_FILE_SIZE:-104857600} / 1024 / 1024 / $DOWNLOAD_DURATION" | bc)
+echo "Время скачивания: $DOWNLOAD_DURATION секунд"
+echo "Скорость скачивания: $DOWNLOAD_SPEED МБ/с"
 
-# Извлекаем ID загруженного файла
-FILE_ID=$(echo "$UPLOAD_OUTPUT" | grep -o 'ID: [a-zA-Z0-9-]*' | head -1 | cut -d ' ' -f2)
-if [ -n "$FILE_ID" ]; then
-    echo "Сохранен ID файла: $FILE_ID для последующего скачивания"
-else
-    echo "Не удалось получить ID файла. Проверка списка файлов..."
-    # Получаем список файлов и выбираем первый с нужным именем
-    FILES_OUTPUT=$(./client -list)
-    echo "$FILES_OUTPUT"
-    FILE_ID=$(echo "$FILES_OUTPUT" | grep "large_test_file.bin" | grep -o 'ID: [a-zA-Z0-9-]*' | head -1 | cut -d ' ' -f2)
-    
-    if [ -z "$FILE_ID" ]; then
-        echo "Не удалось найти ID файла. Выход."
-        exit 1
-    else
-        echo "Найден ID файла: $FILE_ID"
-    fi
+# Проверка наличия файла
+OUTPUT_FILE="$OUTPUT_DIR/$TEST_FILE"
+if [ ! -f "$OUTPUT_FILE" ]; then
+    cleanup_and_exit "Файл не был скачан"
 fi
 
-echo ""
-echo "===== СКАЧИВАНИЕ БОЛЬШОГО ФАЙЛА ====="
-echo "Скачивание файла с ID: $FILE_ID"
-START_TIME=$(date +%s.%N)
-./client -download -id "$FILE_ID" -output "./downloads"
-END_TIME=$(date +%s.%N)
-ELAPSED=$(echo "$END_TIME - $START_TIME" | bc)
-echo "Время скачивания: $ELAPSED секунд"
+# Проверка размера файла
+ORIGINAL_SIZE=$(stat -c%s "$TEST_FILE")
+DOWNLOADED_SIZE=$(stat -c%s "$OUTPUT_FILE")
+echo "Размер оригинального файла: $ORIGINAL_SIZE байт"
+echo "Размер скачанного файла: $DOWNLOADED_SIZE байт"
 
-echo ""
-echo "===== ПРОВЕРКА СКАЧАННОГО ФАЙЛА ====="
-if [ -f "downloads/large_test_file.bin" ]; then
-    echo "Файл успешно скачан!"
-    ORIG_SIZE=$(stat -c%s "large_test_file.bin")
-    DOWN_SIZE=$(stat -c%s "downloads/large_test_file.bin")
-    echo "Размер оригинального файла: $ORIG_SIZE байт"
-    echo "Размер скачанного файла: $DOWN_SIZE байт"
-    
-    if [ "$ORIG_SIZE" -eq "$DOWN_SIZE" ]; then
-        echo "Размеры файлов совпадают!"
-        # Проверяем контрольные суммы
-        ORIG_MD5=$(md5sum large_test_file.bin | cut -d ' ' -f1)
-        DOWN_MD5=$(md5sum downloads/large_test_file.bin | cut -d ' ' -f1)
-        echo "MD5 оригинального файла: $ORIG_MD5"
-        echo "MD5 скачанного файла: $DOWN_MD5"
-        
-        if [ "$ORIG_MD5" = "$DOWN_MD5" ]; then
-            echo "Контрольные суммы совпадают! Тест успешно пройден."
-        else
-            echo "Контрольные суммы отличаются! Тест не пройден."
-        fi
-    else
-        echo "Размеры файлов отличаются! Тест не пройден."
-    fi
-else
-    echo "Скачанный файл не найден!"
-fi 
+if [ "$ORIGINAL_SIZE" -ne "$DOWNLOADED_SIZE" ]; then
+    cleanup_and_exit "Размер скачанного файла ($DOWNLOADED_SIZE) не совпадает с размером оригинального файла ($ORIGINAL_SIZE)"
+fi
+
+# Проверка контрольной суммы MD5
+ORIGINAL_MD5=$(md5sum "$TEST_FILE" | awk '{print $1}')
+DOWNLOADED_MD5=$(md5sum "$OUTPUT_FILE" | awk '{print $1}')
+echo "MD5 оригинального файла: $ORIGINAL_MD5"
+echo "MD5 скачанного файла: $DOWNLOADED_MD5"
+
+if [ "$ORIGINAL_MD5" != "$DOWNLOADED_MD5" ]; then
+    cleanup_and_exit "Контрольная сумма MD5 скачанного файла не совпадает с оригинальной"
+fi
+
+# Очистка временных файлов
+rm -f "$TEMP_LIST_FILE"
+
+echo "Тест пройден успешно! Файл загружен и скачан без ошибок."
+echo "Оригинальный файл и скачанный файл имеют одинаковые размеры и контрольные суммы MD5."
+exit 0

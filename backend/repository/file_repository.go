@@ -21,6 +21,7 @@ type FileRepository interface {
 	GetFileByID(ctx context.Context, fileID string) (*entities.File, error)
 	GetFilesByChat(ctx context.Context, chatID uint64, page, pageSize int) ([]*entities.File, int, error)
 	DeleteFile(ctx context.Context, fileID string) error
+	UpdateFilePath(ctx context.Context, fileID string, newPath string) error
 }
 
 type fileRepository struct {
@@ -187,5 +188,17 @@ func (fr *fileRepository) DeleteFile(ctx context.Context, fileID string) error {
 		WHERE file_id = $1
 	`
 	_, err := fr.db.ExecContext(ctx, query, fileID)
+	return err
+}
+
+// UpdateFilePath обновляет путь к файлу в базе данных
+func (fr *fileRepository) UpdateFilePath(ctx context.Context, fileID string, newPath string) error {
+	query := `
+		UPDATE files
+		SET path = $1
+		WHERE file_id = $2
+	`
+
+	_, err := fr.db.ExecContext(ctx, query, newPath, fileID)
 	return err
 }

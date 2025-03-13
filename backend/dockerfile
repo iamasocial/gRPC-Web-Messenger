@@ -18,6 +18,13 @@ WORKDIR /app
 
 COPY --from=builder /app/messenger .
 
+# Создаём директории для хранения файлов
+RUN mkdir -p /app/storage/files
+RUN mkdir -p /app/storage/temp
+
+# Устанавливаем правильные права доступа
+RUN chmod -R 755 /app/storage
+
 EXPOSE 8080
 
 CMD ["./messenger"]

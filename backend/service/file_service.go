@@ -10,6 +10,7 @@ import (
 	"gRPCWebServer/backend/middleware"
 	"gRPCWebServer/backend/repository"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -470,6 +471,30 @@ func (s *FileService) DownloadFile(req *pb.DownloadFileRequest, stream pb.FileSe
 	// Проверяем, есть ли у пользователя доступ к чату
 	if chat.FirstUserID != userID && chat.SecondUserID != userID {
 		return status.Errorf(codes.PermissionDenied, "У вас нет доступа к этому файлу")
+	}
+
+	// Проверяем существование файла по сохраненному пути
+	_, err = os.Stat(file.Path)
+	if os.IsNotExist(err) {
+		// Файл не найден по сохраненному пути, пробуем найти его в стандартной директории
+		ext := filepath.Ext(file.FileName)
+		alternativePath := filepath.Join(s.baseFilePath, "files", file.FileID+ext)
+
+		// Проверяем существование файла по альтернативному пути
+		_, err = os.Stat(alternativePath)
+		if os.IsNotExist(err) {
+			return status.Errorf(codes.NotFound, "Файл не найден на диске")
+		}
+
+		// Обновляем путь в базе данных
+		file.Path = alternativePath
+		err = s.fileRepo.UpdateFilePath(ctx, file.FileID, alternativePath)
+		if err != nil {
+			// Логируем ошибку, но продолжаем работу
+			log.Printf("Ошибка при обновлении пути файла в базе данных: %v", err)
+		}
+	} else if err != nil {
+		return status.Errorf(codes.Internal, "Ошибка при проверке файла: %v", err)
 	}
 
 	// Открываем файл для чтения

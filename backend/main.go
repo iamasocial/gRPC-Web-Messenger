@@ -33,8 +33,9 @@ func main() {
 	// streamManager := manager.NewStreamManager2()
 
 	// Создаем базовый каталог для файлов
-	baseFilePath := "./files"
-	os.MkdirAll(baseFilePath, 0755)
+	baseFilePath := "./storage"
+	os.MkdirAll(baseFilePath+"/files", 0755)
+	os.MkdirAll(baseFilePath+"/temp", 0755)
 
 	// Инициализируем репозитории
 	userRepo := repository.NewUserRepo(db)

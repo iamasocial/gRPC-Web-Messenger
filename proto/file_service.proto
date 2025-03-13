@@ -1,0 +1,124 @@
+syntax = "proto3";
+
+package messenger;
+
+option go_package = "/generated";
+
+service FileService {
+    // Метод для начала загрузки файла
+    rpc InitFileUpload(InitFileUploadRequest) returns (InitFileUploadResponse);
+    
+    // Метод для загрузки частей файла (унарный вызов)
+    rpc UploadFileChunk(FileChunk) returns (UploadFileChunkResponse);
+    
+    // Метод для завершения загрузки файла
+    rpc FinalizeFileUpload(FinalizeFileUploadRequest) returns (FinalizeFileUploadResponse);
+    
+    // Метод для получения информации о файле
+    rpc GetFileInfo(GetFileInfoRequest) returns (GetFileInfoResponse);
+    
+    // Метод для скачивания файла по частям (потоковая передача)
+    rpc DownloadFile(DownloadFileRequest) returns (stream FileChunk);
+    
+    // Метод для получения списка файлов в чате
+    rpc GetChatFiles(GetChatFilesRequest) returns (GetChatFilesResponse);
+    
+    // Метод для удаления файла
+    rpc DeleteFile(DeleteFileRequest) returns (DeleteFileResponse);
+}
+
+// Запрос на инициализацию загрузки файла
+message InitFileUploadRequest {
+    string filename = 1;    // Имя файла
+    string mime_type = 2;   // MIME-тип файла
+    int64 total_size = 3;   // Общий размер файла в байтах
+    string chat_username = 4; // Имя пользователя чата, к которому относится файл
+}
+
+// Ответ на инициализацию загрузки файла
+message InitFileUploadResponse {
+    string upload_id = 1;   // Уникальный идентификатор загрузки
+    int32 chunk_size = 2;   // Рекомендуемый размер чанка для загрузки
+}
+
+// Часть файла для потоковой передачи
+message FileChunk {
+    string upload_id = 1;   // Идентификатор загрузки
+    int32 chunk_index = 2;  // Индекс чанка (начиная с 0)
+    bytes data = 3;         // Данные чанка файла
+}
+
+// Ответ на загрузку чанка файла
+message UploadFileChunkResponse {
+    string upload_id = 1;      // Идентификатор загрузки
+    int32 received_chunks = 2; // Количество полученных чанков
+    bool success = 3;          // Успешность операции
+}
+
+// Запрос на завершение загрузки файла
+message FinalizeFileUploadRequest {
+    string upload_id = 1;  // Идентификатор загрузки
+    string checksum = 2;   // Контрольная сумма всего файла (например, MD5)
+}
+
+// Ответ на завершение загрузки файла
+message FinalizeFileUploadResponse {
+    string file_id = 1;  // Уникальный идентификатор файла
+    string url = 2;      // URL для доступа к файлу (опционально)
+    bool success = 3;    // Успешность операции
+}
+
+// Запрос на получение информации о файле
+message GetFileInfoRequest {
+    string file_id = 1;  // Идентификатор файла
+}
+
+// Ответ с информацией о файле
+message GetFileInfoResponse {
+    string file_id = 1;       // Идентификатор файла
+    string filename = 2;      // Имя файла
+    string mime_type = 3;     // MIME-тип файла
+    int64 size = 4;           // Размер файла в байтах
+    int64 created_at = 5;     // Время создания (Unix timestamp)
+    string uploaded_by = 6;   // Имя пользователя, загрузившего файл
+    string chat_username = 7; // Имя пользователя чата, к которому относится файл
+}
+
+// Запрос на скачивание файла
+message DownloadFileRequest {
+    string file_id = 1;    // Идентификатор файла
+    int32 chunk_size = 2;  // Предпочтительный размер чанка (сервер может игнорировать)
+}
+
+// Запрос на получение списка файлов в чате
+message GetChatFilesRequest {
+    string chat_username = 1; // Имя пользователя чата
+    int32 page = 2;           // Номер страницы (начиная с 1)
+    int32 page_size = 3;      // Размер страницы
+}
+
+// Ответ со списком файлов в чате
+message GetChatFilesResponse {
+    repeated FileInfo files = 1; // Список информации о файлах
+    int32 total_count = 2;       // Общее количество файлов
+}
+
+// Информация о файле (используется в GetChatFilesResponse)
+message FileInfo {
+    string file_id = 1;      // Идентификатор файла
+    string filename = 2;     // Имя файла
+    string mime_type = 3;    // MIME-тип файла
+    int64 size = 4;          // Размер файла в байтах
+    int64 created_at = 5;    // Время создания (Unix timestamp)
+    string uploaded_by = 6;  // Имя пользователя, загрузившего файл
+}
+
+// Запрос на удаление файла
+message DeleteFileRequest {
+    string file_id = 1; // Идентификатор файла
+}
+
+// Ответ на удаление файла
+message DeleteFileResponse {
+    bool success = 1; // Успешность операции
+} 

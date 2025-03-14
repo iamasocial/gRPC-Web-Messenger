@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+package messenger;
+
+option go_package = "./generated";
+
+// KeyExchangeService предоставляет методы для безопасного обмена ключами
+// по протоколу Диффи-Хеллмана между клиентом и сервером.
+service KeyExchangeService {
+  // InitiateKeyExchange начинает процесс обмена ключами.
+  // Сервер отправляет клиенту:
+  // 1. Большое простое число p (модуль)
+  // 2. Генератор g (примитивный корень по модулю p)
+  // 3. Публичный ключ сервера A = g^a mod p, где a - секретное число сервера
+  rpc InitiateKeyExchange(InitiateKeyExchangeRequest) returns (InitiateKeyExchangeResponse);
+  
+  // CompleteKeyExchange завершает процесс обмена ключами.
+  // 1. Клиент отправляет свой публичный ключ B = g^b mod p, где b - секретное число клиента
+  // 2. Обе стороны могут вычислить общий секретный ключ:
+  //    - Сервер вычисляет K = B^a mod p
+  //    - Клиент вычисляет K = A^b mod p
+  //    В результате K = g^(ab) mod p у обеих сторон
+  rpc CompleteKeyExchange(CompleteKeyExchangeRequest) returns (CompleteKeyExchangeResponse);
+}
+
+// Запрос на начало обмена ключами
+message InitiateKeyExchangeRequest {
+  // Пустое сообщение, так как клиент только инициирует обмен
+}
+
+// Ответ сервера с параметрами для обмена ключами
+message InitiateKeyExchangeResponse {
+  // Модуль p (большое простое число)
+  bytes prime = 1;
+  
+  // Генератор g (примитивный корень по модулю p)
+  bytes generator = 2;
+  
+  // Публичный ключ сервера A = g^a mod p
+  bytes server_public = 3;
+  
+  // Уникальный идентификатор сессии обмена ключами
+  string session_id = 4;
+}
+
+// Запрос на завершение обмена ключами
+message CompleteKeyExchangeRequest {
+  // Публичный ключ клиента B = g^b mod p
+  bytes client_public = 1;
+  
+  // Идентификатор сессии, полученный в InitiateKeyExchangeResponse
+  string session_id = 2;
+}
+
+// Ответ с подтверждением успешного обмена ключами
+message CompleteKeyExchangeResponse {
+  // Подтверждение успешного создания общего секретного ключа
+  bool success = 1;
+  
+  // Опциональное сообщение об ошибке
+  string error_message = 2;
+
+  // Общий секретный ключ (g^ab mod p)
+  bytes shared_secret = 3;
+} 

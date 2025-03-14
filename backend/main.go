@@ -29,9 +29,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// streamManager := manager.NewStreamManager()
-	// streamManager := manager.NewStreamManager2()
-
 	// Создаем базовый каталог для файлов
 	baseFilePath := "./storage"
 	os.MkdirAll(baseFilePath+"/files", 0755)
@@ -47,12 +44,12 @@ func main() {
 	userService := service.NewUserService(userRepo)
 	chatService := service.NewChatService(chatRepo, userRepo, messageRepo, broker)
 	fileService := service.NewFileService(fileRepo, userRepo, chatRepo, baseFilePath)
+	keyExchangeService := service.NewKeyExchangeService()
 
+	// Создаем и запускаем сервер
 	websocket := transport.NewWebSocketHandler()
 	srv := server.NewServer(websocket)
-	// srv := server.NewServer()
-
-	srv.RegisterServices(userService, chatService, fileService)
+	srv.RegisterServices(userService, chatService, fileService, keyExchangeService)
 
 	if err := srv.Start(":50051", ":8888"); err != nil {
 		log.Fatalf("failed to start server: %v", err)

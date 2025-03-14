@@ -32,10 +32,11 @@ func NewServer(wsHandler *transport.WebSocketHandler) *Server {
 	}
 }
 
-func (s *Server) RegisterServices(userService pb.UserServiceServer, chatService pb.ChatServiceServer, fileService pb.FileServiceServer) {
+func (s *Server) RegisterServices(userService pb.UserServiceServer, chatService pb.ChatServiceServer, fileService pb.FileServiceServer, keyExchangeService pb.KeyExchangeServiceServer) {
 	pb.RegisterUserServiceServer(s.grpcServer, userService)
 	pb.RegisterChatServiceServer(s.grpcServer, chatService)
 	pb.RegisterFileServiceServer(s.grpcServer, fileService)
+	pb.RegisterKeyExchangeServiceServer(s.grpcServer, keyExchangeService)
 }
 
 func (s *Server) Start(grpcAddr, httpAddr string) error {

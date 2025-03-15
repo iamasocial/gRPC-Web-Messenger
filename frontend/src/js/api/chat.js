@@ -1,48 +1,46 @@
-import { chatClient } from "./client"; 
+import { getChatClient, getMetadata } from "./client"; 
 import socket from "./websocket.js";
 import { GetChatsRequst, ConnectRequest, CreateChatRequest } from "../../proto/chat_service_pb";
 
 export function getChats(callback) {
-    const token = localStorage.getItem('token');
-    if (!token) {
-        callback(new Error("Unathorized: No token found"), null);
-        return;
+    try {
+        const metadata = getMetadata();
+        const client = getChatClient();
+        const request = new GetChatsRequst();
+
+        client.getChats(request, metadata, (err, response) => {
+            if (err) {
+                callback(err, null);
+                return;
+            }
+
+            callback(null, response.getUsernamesList());
+        });
+    } catch (error) {
+        callback(error, null);
     }
-
-    const request = new GetChatsRequst();
-    const metadata = { 'Authorization': `Bearer ${token}` };
-
-    chatClient.getChats(request, metadata, (err, response) => {
-        if (err) {
-            callback(err, null);
-            return;
-        }
-
-        callback(null, response.getUsernamesList());
-    });
 }
 
 export function connectToChat(receiverUsername, callback) {
-    const token = localStorage.getItem("token");
-    if (!token) {
-        callback(new Error("User is not authenticated"), null);
-        return;
+    try {
+        const metadata = getMetadata();
+        const client = getChatClient();
+        const request = new ConnectRequest();
+        request.setReceiverusername(receiverUsername);
+        
+        client.connectToChat(request, metadata, (err, response) => {
+            if (err) {
+                console.error("Error connecting to chat:", err)
+                callback(err, null);
+                return;
+            }
+
+            console.log(`Connected to ${receiverUsername}`)
+            callback(null, response.getSuccess());
+        });
+    } catch (error) {
+        callback(error, null);
     }
-
-    const request = new ConnectRequest();
-    request.setReceiverusername(receiverUsername);
-    const metadata = { 'Authorization': `Bearer ${token}` };
-    
-    chatClient.connectToChat(request, metadata, (err, response) => {
-        if (err) {
-            console.error("Error connecting to chat:", err)
-            callback(err, null);
-            return;
-        }
-
-        console.log(`Connected to ${receiverUsername}`)
-        callback(null, response.getSuccess());
-    });
 }
 
 let currentHandler = null;
@@ -51,7 +49,7 @@ let isConnected = false;
 export function startChat(onMessageReceived) {
     const token = localStorage.getItem("token");
     if (!token) {
-        console.error("User is not authenticated");
+        console.error("Пользователь не авторизован");
         window.location.href = "index.html";
         return;
     }
@@ -60,7 +58,7 @@ export function startChat(onMessageReceived) {
     if (isConnected) {
         // Заменяем текущий обработчик сообщений
         if (currentHandler) {
-            socket.removeSpecificMessageHandler(currentHandler);
+            socket.removeMessageHandler(currentHandler);
         }
         currentHandler = onMessageReceived;
         socket.addMessageHandler(onMessageReceived);
@@ -68,7 +66,12 @@ export function startChat(onMessageReceived) {
     }
 
     // Подключаемся к сокету
-    socket.connect(token);
+    socket.connect().catch(error => {
+        console.error("Ошибка при подключении к WebSocket:", error);
+        if (error.message.includes('Токен не найден')) {
+            window.location.href = "index.html";
+        }
+    });
     isConnected = true;
     currentHandler = onMessageReceived;
     socket.addMessageHandler(onMessageReceived);
@@ -87,6 +90,7 @@ export function chat(content, callback) {
     }
 
     const message = {
+        type: "text",
         content: content,
     };
 
@@ -107,22 +111,20 @@ export function chat(content, callback) {
  * @param {string} comment - Дополнительный комментарий к файлу (опционально)
  */
 export function sendFileMessage(fileId, fileName, fileSize, comment = '') {
-    // Создаем сообщение о файле с метаданными
     const fileMessage = {
-        content: comment, // Сохраняем комментарий (если есть) в текстовом поле
+        content: comment,
         fileId: fileId,
         fileName: fileName,
         fileSize: fileSize,
         messageType: 'file'
     };
     
-    // Отправляем сообщение
     socket.sendMessage(fileMessage);
 }
 
 export function stopChat() {
     if (currentHandler) {
-        socket.removeSpecificMessageHandler(currentHandler);
+        socket.removeMessageHandler(currentHandler);
         currentHandler = null;
     }
     isConnected = false;
@@ -130,21 +132,20 @@ export function stopChat() {
 }
 
 export function createChat(username, callback) {
-    const token = localStorage.getItem("token");
-    if (!token) {
-        callback(new Error("Unathorized: No token found"), null)
-        return;
+    try {
+        const metadata = getMetadata();
+        const client = getChatClient();
+        const request = new CreateChatRequest();
+        request.setUsername(username);
+
+        client.createChat(request, metadata, (err, response) => {
+            if (err) {
+                callback(err, null)
+                return;
+            }
+            callback(null, response.getUsername());
+        });
+    } catch (error) {
+        callback(error, null);
     }
-
-    const request = new CreateChatRequest();
-    request.setUsername(username);
-    const metadata = { 'Authorization': `Bearer ${token}` };
-
-    chatClient.createChat(request, metadata, (err, response) => {
-        if (err) {
-            callback(err, null)
-            return;
-        }
-        callback(null, response.getUsername());
-    });
 }

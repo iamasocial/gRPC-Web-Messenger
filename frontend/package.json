@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "webpack serve --mode development --open",
+    "build": "webpack --mode production",
+    "dev": "webpack serve --mode development"
   },
   "keywords": [],
   "author": "",
@@ -25,6 +28,8 @@
   },
   "dependencies": {
     "@improbable-eng/grpc-web": "^0.15.0",
+    "bn.js": "^5.2.1",
+    "crypto-js": "^4.2.0",
     "google-protobuf": "^3.21.4",
     "grpc-web": "^1.5.0",
     "navigo": "^8.11.1",

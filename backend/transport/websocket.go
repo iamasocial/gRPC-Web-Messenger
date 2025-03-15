@@ -192,8 +192,20 @@ func (h *WebSocketHandler) Handle(w http.ResponseWriter, r *http.Request) {
 				// Запрос на скачивание файла
 				h.handleFileDownload(conn, message)
 
-			default:
+			case "text":
 				// Стандартное текстовое сообщение для чата
+				chatMessage := pb.ChatMessage{
+					Content: message.Content,
+				}
+
+				if err := stream.Send(&chatMessage); err != nil {
+					log.Println("Error sending message to gRPC stream:", err)
+					return
+				}
+
+			default:
+				// Обрабатываем остальные типы сообщений как текстовые
+				// для обратной совместимости
 				chatMessage := pb.ChatMessage{
 					Content: message.Content,
 				}

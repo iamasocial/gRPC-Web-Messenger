@@ -74,10 +74,19 @@ function handleIncomingMessage(message) {
     const sender = message.senderUsername || message.senderusername || 
                    message.SenderUsername || message.Senderusername || '';
     
+    // Получаем имя текущего пользователя из localStorage
+    const currentUser = localStorage.getItem('username');
+    
     // Сообщение от собеседника, если отправитель совпадает с selectedUser
-    // Иначе сообщение от текущего пользователя
-    const isFromCompanion = sender === selectedUser;
-    console.log('Отправитель:', sender, 'Выбранный пользователь:', selectedUser, 'От собеседника:', isFromCompanion);
+    // Если у сообщения отправитель не задан или sender равен currentUser - это сообщение от текущего пользователя
+    let isFromCompanion = sender === selectedUser;
+    
+    // Если отправитель указан явно и это currentUser, то это НЕ сообщение от собеседника
+    if (sender && sender === currentUser) {
+        isFromCompanion = false;
+    }
+    
+    console.log('Отправитель:', sender, 'Текущий пользователь:', currentUser, 'Выбранный пользователь:', selectedUser, 'От собеседника:', isFromCompanion);
     
     if (isFromCompanion) {
         messageDiv.classList.add('received');
@@ -132,7 +141,7 @@ function handleIncomingMessage(message) {
             downloadFile(fileId, (err, fileData) => {
                 const fileContainer = messageDiv.querySelector('.message-file');
                 
-                if (err || !fileData || !fileData.url) {
+                if (err || !fileData || !fileData.blob) {
                     // Если ошибка загрузки
                     fileContainer.innerHTML = `
                         <div class="file-container error">
@@ -146,6 +155,9 @@ function handleIncomingMessage(message) {
                     `;
                     return;
                 }
+                
+                // Создаем URL из Blob
+                const fileUrl = URL.createObjectURL(fileData.blob);
                 
                 // Создаем предварительно изображение для определения его размеров
                 const preloadImg = new Image();
@@ -165,7 +177,7 @@ function handleIncomingMessage(message) {
                     // Успешно загружено - отображаем изображение
                     fileContainer.innerHTML = `
                         <div class="image-wrapper">
-                            <img src="${fileData.url}" alt="${escapeHtml(fileName)}" class="chat-image" title="${escapeHtml(fileName)}" />
+                            <img src="${fileUrl}" alt="${escapeHtml(fileName)}" class="chat-image" title="${escapeHtml(fileName)}" />
                         </div>
                         <div class="image-caption">
                             <div class="file-size">${formatFileSize(fileSize)}</div>
@@ -192,18 +204,18 @@ function handleIncomingMessage(message) {
                             
                             // Сохраняем ID файла для скачивания
                             downloadButton.setAttribute('data-file-id', fileId);
-                            downloadButton.setAttribute('data-file-url', fileData.url);
+                            downloadButton.setAttribute('data-file-url', fileUrl);
                             downloadButton.setAttribute('data-file-name', fileName);
                             
                             // Подготавливаем обработчик скачивания
                             downloadButton.onclick = function() {
-                                const url = this.getAttribute('data-file-url');
+                                const fileUrl = this.getAttribute('data-file-url');
                                 const name = this.getAttribute('data-file-name');
                                 
-                                if (url && name) {
+                                if (fileUrl && name) {
                                     // Создаем ссылку для скачивания и эмулируем клик
                                     const downloadLink = document.createElement('a');
-                                    downloadLink.href = url;
+                                    downloadLink.href = fileUrl;
                                     downloadLink.download = name;
                                     document.body.appendChild(downloadLink);
                                     downloadLink.click();
@@ -218,7 +230,7 @@ function handleIncomingMessage(message) {
                             // Отображаем изображение в полном размере
                             fileViewName.textContent = fileName;
                             fileViewContainer.innerHTML = `
-                                <img src="${fileData.url}" alt="${escapeHtml(fileName)}" class="full-size-image" />
+                                <img src="${fileUrl}" alt="${escapeHtml(fileName)}" class="full-size-image" />
                                 <div class="file-info">
                                     <div class="file-size">${formatFileSize(fileSize)}</div>
                                 </div>
@@ -238,7 +250,7 @@ function handleIncomingMessage(message) {
                 };
                 
                 // Начинаем загрузку изображения
-                preloadImg.src = fileData.url;
+                preloadImg.src = fileUrl;
             });
         } else {
             // Для обычных файлов - показываем значок и информацию
@@ -405,16 +417,33 @@ function onSendMessage() {
     const messageText = messageInput.value.trim();
     
     if (messageText && currentChat) {
-        // Отправка сообщения
+        console.log('Отправка сообщения:', messageText);
+        
+        // Сразу отображаем сообщение в интерфейсе
+        const currentUser = localStorage.getItem('username') || 'me';
+        const messageObj = {
+            content: messageText,
+            timestamp: Date.now(),
+            senderUsername: currentUser
+        };
+        
+        console.log('Локально добавляем сообщение от пользователя:', currentUser);
+        
+        // Отображаем сообщение в интерфейсе
+        handleIncomingMessage(messageObj);
+        
+        // Очистка поля ввода перед отправкой
+        messageInput.value = '';
+        
+        // Отправка сообщения на сервер
         chat(messageText, (err) => {
             if (err) {
                 console.error('Ошибка при отправке сообщения:', err);
                 showErrorToast('Ошибка при отправке сообщения');
-        return;
-    }
+                return;
+            }
 
-            // Очистка поля ввода после успешной отправки
-            messageInput.value = '';
+            console.log('Сообщение успешно отправлено');
         });
     }
 }
@@ -429,9 +458,21 @@ function showErrorToast(message) {
 }
 
 function resetChatView() {
-    const chatMessages = document.getElementById("chat-messages");
-    chatMessages.innerHTML = "";
-    lastDisplayedDate = null;
+    const chatMessages = document.getElementById('chat-messages');
+    
+    // Освобождаем все URL объектов Blob для изображений перед очисткой
+    const chatImages = chatMessages.querySelectorAll('img.chat-image');
+    chatImages.forEach(img => {
+        if (img.src && img.src.startsWith('blob:')) {
+            URL.revokeObjectURL(img.src);
+        }
+    });
+    
+    chatMessages.innerHTML = '';
+    document.getElementById('current-chat-header').textContent = '';
+    document.getElementById('message-input').value = '';
+    
+    currentChat = null;
 }
 
 function handleCreateChat() {
@@ -656,6 +697,23 @@ function initFileHandling() {
                     
                     console.log('Файл успешно загружен:', fileData);
                     
+                    // Создаем локальное сообщение для отображения
+                    const currentUser = localStorage.getItem('username') || 'me';
+                    const fileMessage = {
+                        messageType: 'file',
+                        fileId: fileData.fileId,
+                        fileName: selectedFile.name,
+                        fileSize: selectedFile.size,
+                        content: '',
+                        timestamp: Date.now(),
+                        senderUsername: currentUser
+                    };
+                    
+                    console.log('Локально добавляем файловое сообщение от пользователя:', currentUser);
+                    
+                    // Отображаем сообщение в интерфейсе
+                    handleIncomingMessage(fileMessage);
+                    
                     // Отправляем сообщение о файле
                     if (fileData && fileData.fileId) {
                         sendFileMessage(fileData.fileId, selectedFile.name, selectedFile.size);
@@ -732,6 +790,23 @@ function uploadSelectedFile() {
         // Отправляем сообщение с информацией о файле
         sendFileMessage(fileData.fileId, fileData.fileName || selectedFile.name, selectedFile.size);
         
+        // Создаем локальное сообщение для отображения
+        const currentUser = localStorage.getItem('username') || 'me';
+        const fileMessage = {
+            messageType: 'file',
+            fileId: fileData.fileId,
+            fileName: fileData.fileName || selectedFile.name,
+            fileSize: selectedFile.size,
+            content: '',
+            timestamp: Date.now(),
+            senderUsername: currentUser
+        };
+        
+        console.log('Локально добавляем файловое сообщение от пользователя:', currentUser);
+        
+        // Отображаем сообщение в интерфейсе
+        handleIncomingMessage(fileMessage);
+        
         // Очищаем и закрываем модальное окно
         filePreviewModal.style.display = 'none';
         selectedFile = null;
@@ -784,7 +859,7 @@ function viewFile(fileId) {
             return;
         }
         
-        if (!fileData) {
+        if (!fileData || !fileData.blob) {
             console.error('Нет данных о файле');
             fileViewContainer.innerHTML = '<div class="error">Не удалось получить данные о файле</div>';
             return;
@@ -795,28 +870,42 @@ function viewFile(fileId) {
         fileViewName.textContent = fileData.filename || 'Файл';
         fileViewContainer.innerHTML = '';
         
+        // Создаем URL из Blob для просмотра
+        const fileUrl = URL.createObjectURL(fileData.blob);
+        
         // Отображаем содержимое в зависимости от типа файла
-        if (fileData.url) {
-            if (fileData.mimeType && fileData.mimeType.startsWith('image/')) {
-                const img = document.createElement('img');
-                img.src = fileData.url;
-                img.className = 'file-preview-image';
-                fileViewContainer.appendChild(img);
-            } else {
-                const fileLink = document.createElement('div');
-                fileLink.className = 'file-link';
-                fileLink.innerHTML = `
-                    <div class="file-icon large">📄</div>
-                    <div class="file-info">
-                        <div class="file-name">${escapeHtml(fileData.filename || 'Файл')}</div>
-                        <div class="file-size">${formatFileSize(fileData.size || 0)}</div>
-                        <div class="file-message">Нажмите "Скачать" для сохранения файла</div>
-                    </div>
-                `;
-                fileViewContainer.appendChild(fileLink);
-            }
+        if (fileData.mimeType && fileData.mimeType.startsWith('image/')) {
+            const img = document.createElement('img');
+            img.src = fileUrl;
+            img.className = 'file-preview-image';
+            fileViewContainer.appendChild(img);
         } else {
-            fileViewContainer.innerHTML = '<div class="error">Не удалось загрузить файл</div>';
+            const fileLink = document.createElement('div');
+            fileLink.className = 'file-link';
+            fileLink.innerHTML = `
+                <div class="file-icon large">📄</div>
+                <div class="file-info">
+                    <div class="file-name">${escapeHtml(fileData.filename || 'Файл')}</div>
+                    <div class="file-size">${formatFileSize(fileData.size || 0)}</div>
+                    <div class="file-message">Нажмите "Скачать" для сохранения файла</div>
+                </div>
+            `;
+            fileViewContainer.appendChild(fileLink);
+        }
+        
+        // Сохраняем URL в атрибуте кнопки, чтобы освободить его позже
+        downloadButton.setAttribute('data-file-url', fileUrl);
+        
+        // Добавляем обработчик события закрытия модального окна для освобождения URL
+        const closeButton = document.getElementById('close-file-view-button');
+        if (closeButton) {
+            closeButton.onclick = function() {
+                if (fileViewModal) {
+                    fileViewModal.style.display = 'none';
+                    // Освобождаем URL
+                    URL.revokeObjectURL(fileUrl);
+                }
+            };
         }
     });
 }
@@ -850,17 +939,20 @@ function downloadFileHandler(fileId) {
             return;
         }
         
-        if (!fileData || !fileData.url) {
-            console.error('Нет данных о файле или URL для скачивания');
+        if (!fileData || !fileData.blob) {
+            console.error('Нет данных о файле или Blob для скачивания');
             showErrorToast('Не удалось получить файл для скачивания');
             return;
         }
         
         console.log('Файл успешно загружен для скачивания:', fileData);
         
+        // Создаем URL из Blob
+        const fileUrl = URL.createObjectURL(fileData.blob);
+        
         // Создаем ссылку для скачивания и эмулируем клик
         const downloadLink = document.createElement('a');
-        downloadLink.href = fileData.url;
+        downloadLink.href = fileUrl;
         downloadLink.download = fileData.filename || 'file';
         document.body.appendChild(downloadLink);
         downloadLink.click();
@@ -868,7 +960,7 @@ function downloadFileHandler(fileId) {
         // Удаляем временный элемент
         setTimeout(() => {
             document.body.removeChild(downloadLink);
-            URL.revokeObjectURL(fileData.url); // Освобождаем URL
+            URL.revokeObjectURL(fileUrl); // Освобождаем URL
         }, 100);
     });
 }

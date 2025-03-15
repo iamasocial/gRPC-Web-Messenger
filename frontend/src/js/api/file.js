@@ -1,10 +1,12 @@
-import { fileClient } from "./client";
+import { getFileClient, getMetadata } from "./client";
 import { 
     InitFileUploadRequest, 
     FileChunk, 
     FinalizeFileUploadRequest, 
     GetFileInfoRequest, 
-    DownloadFileRequest 
+    DownloadFileRequest,
+    UploadFileRequest,
+    DeleteFileRequest
 } from "../../proto/file_service_pb";
 import socket from "./websocket.js";
 
@@ -36,10 +38,8 @@ export function uploadFile(file, receiverUsername, callback) {
             const uploadHandlerId = `upload_${uploadId}`;
             
             // Добавляем обработчик для получения ответов по загрузке файла
-            const fileUploadHandler = (event) => {
+            const fileUploadHandler = (message) => {
                 try {
-                    const message = JSON.parse(event.data);
-                    
                     // Проверяем, что это сообщение относится к нашей загрузке
                     if (message.uploadId === uploadId) {
                         console.log('Получено сообщение о загрузке файла:', message);
@@ -89,11 +89,27 @@ export function uploadFile(file, receiverUsername, callback) {
                 const isLastChunk = offset + chunkSize >= fileData.length;
                 
                 // Отправляем чанк через WebSocket в виде base64-строки для лучшей передачи бинарных данных
-                const base64Chunk = btoa(
-                    Array.from(chunk)
-                        .map(byte => String.fromCharCode(byte))
-                        .join('')
-                );
+                let base64Chunk;
+                try {
+                    // Конвертируем Uint8Array в строку символов
+                    let binaryString = '';
+                    for (let i = 0; i < chunk.length; i++) {
+                        // Используем только валидные символы для избежания ошибок
+                        binaryString += String.fromCharCode(chunk[i]);
+                    }
+                    
+                    // Кодируем в base64
+                    base64Chunk = btoa(binaryString);
+                    
+                    // Проверяем, что получился валидный base64
+                    if (!/^[A-Za-z0-9+/=]+$/.test(base64Chunk)) {
+                        throw new Error('Получена невалидная base64 строка после кодирования');
+                    }
+                } catch (error) {
+                    console.error('Ошибка при кодировании в base64:', error);
+                    callback(new Error('Ошибка кодирования файла'), null);
+                    return;
+                }
                 
                 socket.sendMessage({
                     type: 'file_chunk',
@@ -187,31 +203,19 @@ function finalizeFileUpload(uploadId, checksum, metadata) {
 }
 
 export function downloadFile(fileId, callback) {
-    const token = localStorage.getItem('token');
-    if (!token) {
-        callback(new Error("Неавторизованный доступ: Токен не найден"), null);
-        return;
-    }
-    
-    // Получаем объект сокета
-    const ws = socket.getSocket();
-    if (!ws) {
-        callback(new Error("WebSocket не подключен"), null);
-        return;
-    }
-    
-    // Генерируем уникальный ID для этой операции скачивания
-    const downloadHandlerId = `download_${fileId}_${generateUploadId()}`;
-    
+    const downloadHandlerId = `download-${fileId}`;
     let fileInfo = null;
-    const chunks = [];
+    let receivedChunks = [];
+    
+    console.log(`Начало скачивания файла ${fileId}, регистрируем обработчик ${downloadHandlerId}`);
     
     // Устанавливаем обработчик для получения чанков файла
-    const fileDownloadHandler = (event) => {
+    const fileDownloadHandler = (message) => {
         try {
-            const message = JSON.parse(event.data);
             // Проверяем, что это сообщение относится к нашему файлу
             if (message.fileId === fileId) {
+                console.log(`Обработчик ${downloadHandlerId}: получено сообщение для файла ${fileId}, тип: ${message.type}`);
+                
                 if (message.type === 'file_info') {
                     // Получили информацию о файле
                     console.log('Получена информация о файле:', message);
@@ -224,86 +228,194 @@ export function downloadFile(fileId, callback) {
                     // Получили чанк файла
                     let chunkData;
                     
-                    console.log(`Получен чанк ${message.chunkIndex}, encoding: ${message.encoding}`);
+                    // Проверяем, есть ли индекс чанка, если нет - считаем его нулевым чанком (первым)
+                    const chunkIndex = message.chunkIndex !== undefined ? message.chunkIndex : 0;
+                    console.log(`Получен чанк ${chunkIndex}, encoding: ${message.encoding}`);
                     
-                    // Обрабатываем данные в зависимости от формата кодирования
-                    if (message.encoding === 'base64' && message.data) {
-                        // Декодируем данные из base64
+                    if (message.encoding === 'base64') {
                         try {
-                            const binaryString = atob(message.data);
-                            chunkData = new Uint8Array(binaryString.length);
-                            for (let i = 0; i < binaryString.length; i++) {
-                                chunkData[i] = binaryString.charCodeAt(i);
+                            // Определяем, в каком поле содержатся данные
+                            const base64Data = message.dataString || message.data || '';
+                            
+                            // Проверяем, что строка валидная base64
+                            if (!base64Data) {
+                                console.error('Отсутствуют данные в чанке файла');
+                                return;
                             }
-                            console.log(`Чанк ${message.chunkIndex} успешно декодирован из base64, размер: ${chunkData.length} байт`);
-                        } catch (e) {
-                            console.error("Ошибка декодирования base64:", e);
-                            chunkData = new Uint8Array(0);
+                            
+                            // Вывод данных о чанке для отладки
+                            console.log(`Обработка чанка ${chunkIndex}, размер данных: ${base64Data.length} символов`);
+                            
+                            // Проверяем валидность base64 данных перед декодированием
+                            if (!/^[A-Za-z0-9+/=]+$/.test(base64Data)) {
+                                console.error('Невалидная base64 строка:', 
+                                    base64Data.substring(0, 50) + '...');
+                                
+                                // Попытка очистить строку, удалив невалидные символы
+                                const cleanBase64 = base64Data.replace(/[^A-Za-z0-9+/=]/g, '');
+                                if (cleanBase64.length < base64Data.length * 0.9) {
+                                    console.error('Слишком много невалидных символов в base64 строке');
+                                    return;
+                                }
+                                
+                                // Декодируем очищенную строку
+                                console.log('Пытаемся декодировать очищенную строку...');
+                                chunkData = atob(cleanBase64);
+                            } else {
+                                // Декодируем валидную строку
+                                chunkData = atob(base64Data);
+                            }
+                            
+                            // Преобразуем строку в Uint8Array
+                            const bytes = new Uint8Array(chunkData.length);
+                            for (let i = 0; i < chunkData.length; i++) {
+                                bytes[i] = chunkData.charCodeAt(i);
+                            }
+                            chunkData = bytes;
+                            
+                            // Проверяем, что после декодирования получены данные
+                            if (!chunkData || chunkData.length === 0) {
+                                console.error(`Чанк ${chunkIndex} пуст после декодирования`);
+                                return;
+                            } else {
+                                console.log(`Чанк ${chunkIndex} успешно декодирован, размер: ${chunkData.length} байт`);
+                            }
+                        } catch (error) {
+                            console.error(`Ошибка при декодировании чанка ${chunkIndex}:`, error);
+                            return;
                         }
-                    } else if (Array.isArray(message.data)) {
-                        // Если это массив (старый формат), преобразуем его в Uint8Array
-                        chunkData = new Uint8Array(message.data);
                     } else {
-                        console.error("Неизвестный формат данных:", typeof message.data);
-                        // Если формат неизвестен, создаем пустой массив
-                        chunkData = new Uint8Array(0);
+                        // Другие типы кодирования мы не обрабатываем
+                        console.error('Неизвестный тип кодирования данных:', message.encoding);
+                        return;
                     }
                     
-                    chunks.push(chunkData);
+                    // Сохраняем чанк в массив с соответствующим индексом
+                    console.log(`Сохраняем чанк ${chunkIndex} в массив receivedChunks`);
+                    receivedChunks[chunkIndex] = chunkData;
                     
-                    // Если это последний чанк, собираем файл
+                    // Если это последний чанк, проверяем все полученные чанки
                     if (message.isLastChunk) {
-                        // Объединяем все чанки в один файл
-                        const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-                        console.log(`Получено ${chunks.length} чанков, общий размер: ${totalLength} байт`);
+                        // Определяем последний индекс и общее количество чанков
+                        const lastChunkIndex = message.chunkIndex !== undefined ? message.chunkIndex : 
+                            (receivedChunks.length > 0 ? receivedChunks.length - 1 : 0);
+                            
+                        console.log(`Получен последний чанк. Всего чанков: ${lastChunkIndex + 1}`);
+                        console.log(`Размер массива receivedChunks: ${receivedChunks.length}`);
                         
-                        const fileData = new Uint8Array(totalLength);
-                        
-                        let offset = 0;
-                        for (let i = 0; i < chunks.length; i++) {
-                            const chunk = chunks[i];
-                            console.log(`Обработка чанка ${i}, размер: ${chunk.length} байт`);
-                            fileData.set(chunk, offset);
-                            offset += chunk.length;
+                        // Выводим информацию о всех полученных чанках
+                        for (let i = 0; i <= lastChunkIndex; i++) {
+                            const chunk = receivedChunks[i];
+                            if (chunk && chunk.length > 0) {
+                                console.log(`Чанк ${i} присутствует, размер: ${chunk.length} байт`);
+                            } else {
+                                console.log(`Чанк ${i} отсутствует или пуст`);
+                            }
                         }
                         
-                        console.log(`Файл собран, итоговый размер: ${fileData.length} байт`);
+                        // Собираем все чанки в один массив, пропуская отсутствующие или битые чанки
+                        let totalLength = 0;
+                        let validChunksCount = 0;
                         
-                        // Создаем Blob и ссылку для скачивания
-                        const blob = new Blob([fileData], { type: fileInfo?.mimeType || 'application/octet-stream' });
-                        console.log(`Blob создан, размер: ${blob.size} байт, тип: ${fileInfo?.mimeType || 'application/octet-stream'}`);
+                        // Сначала подсчитываем размер валидных данных
+                        for (let i = 0; i <= lastChunkIndex; i++) {
+                            const chunk = receivedChunks[i];
+                            if (chunk && chunk.length > 0) {
+                                totalLength += chunk.length;
+                                validChunksCount++;
+                            } else if (i < lastChunkIndex) {
+                                // Если отсутствует чанк, но он не последний - ждем следующих сообщений
+                                console.warn(`Отсутствует чанк ${i}. Возможно данные еще не получены.`);
+                            }
+                        }
                         
-                        const url = URL.createObjectURL(blob);
+                        // Проверяем, все ли чанки получены (или достаточное количество)
+                        const totalChunks = lastChunkIndex + 1; // +1 т.к. индексация с 0
+                        console.log(`Найдено ${validChunksCount} валидных чанков из ${totalChunks}`);
                         
-                        // Удаляем обработчик
+                        // Устанавливаем более низкий порог для успешной сборки файла
+                        if (validChunksCount < totalChunks * 0.3) { // Снижаем порог до 30%
+                            console.error(`Получено недостаточно чанков: ${validChunksCount} из ${totalChunks}`);
+                            console.warn('Ожидаем дополнительные чанки...');
+                            return;
+                        }
+                        
+                        // Если не хватает первого чанка (индекс 0), но есть все остальные, пропускаем его
+                        if (!receivedChunks[0] && validChunksCount >= totalChunks - 1) {
+                            console.warn('Отсутствует первый чанк (индекс 0), но есть почти все остальные. Продолжаем сборку файла без него.');
+                        }
+                        
+                        // Создаем финальный буфер для всех данных
+                        const fileData = new Uint8Array(totalLength);
+                        let offset = 0;
+                        
+                        // Копируем только валидные чанки в буфер
+                        for (const chunk of receivedChunks) {
+                            if (chunk && chunk.length > 0) {
+                                fileData.set(chunk, offset);
+                                offset += chunk.length;
+                            }
+                        }
+                        
+                        // Создаем объект Blob
+                        const blob = new Blob([fileData], { type: fileInfo ? fileInfo.mimeType : 'application/octet-stream' });
+                        
+                        // Проверяем, получилась ли валидная структура данных
+                        if (fileData.length === 0) {
+                            console.error('Файловые данные пусты после обработки всех чанков');
+                            socket.removeFileHandler(downloadHandlerId);
+                            callback(new Error('Получен пустой файл'), null);
+                            return;
+                        }
+                        
+                        // Очищаем обработчик, т.к. скачивание завершено
                         socket.removeFileHandler(downloadHandlerId);
                         
-                        callback(null, { 
-                            filename: fileInfo?.filename || 'file', 
-                            url, 
-                            size: fileInfo?.size || blob.size,
-                            mimeType: fileInfo?.mimeType || 'application/octet-stream'
+                        // Создаем данные файла, даже если не получили метаданные
+                        if (!fileInfo) {
+                            fileInfo = {
+                                filename: 'download.file',
+                                mimeType: 'application/octet-stream',
+                                size: fileData.length
+                            };
+                        }
+                        
+                        // Возвращаем файл через callback
+                        callback(null, {
+                            blob: blob,
+                            filename: fileInfo.filename,
+                            mimeType: fileInfo.mimeType,
+                            size: fileInfo.size
                         });
                     }
                 } else if (message.type === 'file_download_error') {
                     // Если произошла ошибка
+                    console.error(`Получена ошибка скачивания для файла ${fileId}:`, message.error);
                     socket.removeFileHandler(downloadHandlerId);
+                    console.log(`Удалён обработчик ${downloadHandlerId} из-за ошибки`);
                     callback(new Error(message.error || 'Ошибка скачивания файла'), null);
                 }
+            } else if (message.type === 'file_chunk') {
+                // Если это чанк другого файла, игнорируем его
+                console.log(`Обработчик ${downloadHandlerId}: получен чанк для другого файла ${message.fileId}, игнорируем`);
             }
         } catch (error) {
-            console.error('Ошибка обработки сообщения:', error);
+            console.error(`Ошибка обработки сообщения в обработчике ${downloadHandlerId}:`, error);
+            callback(error, null);
         }
     };
     
     // Добавляем обработчик через специальный механизм для файловых сообщений
     socket.addFileHandler(downloadHandlerId, fileDownloadHandler);
+    console.log(`Обработчик ${downloadHandlerId} зарегистрирован`);
     
     // Отправляем запрос на начало скачивания файла
     socket.sendMessage({
         type: 'file_download_request',
         fileId: fileId
     });
+    
+    console.log(`Запрос на скачивание файла ${fileId} отправлен`);
 }
 
 // Генерация уникального ID для загрузки

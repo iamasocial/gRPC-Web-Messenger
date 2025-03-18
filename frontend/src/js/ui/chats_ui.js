@@ -21,11 +21,49 @@ function loadChats() {
         const urlParams = new URLSearchParams(window.location.search);
         const chatParam = urlParams.get('chat');
 
-        chats.forEach(username => {
+        chats.forEach(chat => {
+            const username = chat.username;
             const chatElement = document.createElement('div');
             chatElement.classList.add('chat-item');
-            chatElement.textContent = username;
+            
+            // Форматируем имя пользователя и информацию о шифровании
+            const usernameDiv = document.createElement('div');
+            usernameDiv.classList.add('username');
+            usernameDiv.textContent = username;
+            
+            // Создаем блок с информацией о шифровании
+            const encryptionInfo = document.createElement('div');
+            encryptionInfo.classList.add('encryption-info');
+            
+            // Добавляем информацию об алгоритме
+            const algorithmSpan = document.createElement('span');
+            algorithmSpan.classList.add('encryption-param');
+            algorithmSpan.innerHTML = `Алг: <strong>${chat.encryptionAlgorithm || 'n/a'}</strong>`;
+            
+            // Добавляем информацию о режиме
+            const modeSpan = document.createElement('span');
+            modeSpan.classList.add('encryption-param');
+            modeSpan.innerHTML = `Режим: <strong>${chat.encryptionMode || 'n/a'}</strong>`;
+            
+            // Добавляем информацию о набивке
+            const paddingSpan = document.createElement('span');
+            paddingSpan.classList.add('encryption-param');
+            paddingSpan.innerHTML = `Набивка: <strong>${chat.encryptionPadding || 'n/a'}</strong>`;
+            
+            // Добавляем все элементы в блок информации о шифровании
+            encryptionInfo.appendChild(algorithmSpan);
+            encryptionInfo.appendChild(modeSpan);
+            encryptionInfo.appendChild(paddingSpan);
+            
+            // Добавляем имя пользователя и информацию о шифровании в элемент чата
+            chatElement.appendChild(usernameDiv);
+            chatElement.appendChild(encryptionInfo);
+            
+            // Сохраняем данные как атрибуты для дальнейшего использования
             chatElement.dataset.username = username;
+            chatElement.dataset.algorithm = chat.encryptionAlgorithm || '';
+            chatElement.dataset.mode = chat.encryptionMode || '';
+            chatElement.dataset.padding = chat.encryptionPadding || '';
 
             if (username === chatParam) {
                 chatElement.classList.add('active');
@@ -34,7 +72,7 @@ function loadChats() {
             chatList.appendChild(chatElement);
         });
 
-        if (chatParam && chats.includes(chatParam)) {
+        if (chatParam && chats.some(chat => chat.username === chatParam)) {
             connectToChatHandler(chatParam);
         }
     });
@@ -441,7 +479,19 @@ function handleCreateChat() {
         return;
     }
 
-    createChat(username, (err, createdUsername) => {
+    // Получаем выбранные параметры шифрования
+    const algorithm = getSelectedOption("algorithm-select");
+    const mode = getSelectedOption("mode-select");
+    const padding = getSelectedOption("padding-select");
+
+    // Параметры шифрования
+    const encryptionParams = {
+        algorithm: algorithm,
+        mode: mode,
+        padding: padding
+    };
+
+    createChat(username, encryptionParams, (err, createdUsername) => {
         if (err) {
             console.error("Error creating chat:", err);
             showError("Ошибка при создании чата");
@@ -455,6 +505,13 @@ function handleCreateChat() {
     });
 }
 
+// Вспомогательная функция для получения значения выбранной опции
+function getSelectedOption(groupId) {
+    const group = document.getElementById(groupId);
+    const selectedButton = group.querySelector(".option-btn.selected");
+    return selectedButton ? selectedButton.getAttribute("data-value") : "";
+}
+
 /**
  * Инициализация модального окна создания чата
  */
@@ -464,6 +521,12 @@ function initChatCreationModal() {
     const closeBtn = modal.querySelector('.close');
     const createBtn = document.getElementById('create-chat-submit');
     const cancelBtn = document.getElementById('create-chat-cancel');
+
+    // Инициализируем кнопки опций
+    initOptionButtons();
+    
+    // Устанавливаем значения по умолчанию
+    resetModal();
 
     // Открытие модального окна
     newChatBtn.addEventListener('click', () => {
@@ -484,9 +547,6 @@ function initChatCreationModal() {
     
     // Кнопка создания чата
     createBtn.addEventListener('click', handleCreateChat);
-    
-    // Инициализируем кнопки опций
-    initOptionButtons();
 }
 
 function initOptionButtons() {
@@ -505,11 +565,8 @@ function initOptionGroup(groupId) {
             button.classList.add("selected");
         });
     });
-
-    // Select first option by default
-    if (buttons.length > 0) {
-        buttons[0].classList.add("selected");
-    }
+    
+    // Не выбираем опцию по умолчанию здесь, это будет делать resetModal
 }
 
 function showError(message) {
@@ -523,14 +580,37 @@ function showSuccess(message) {
 function resetModal() {
     document.getElementById("new-chat-username").value = "";
     
-    const optionGroups = document.querySelectorAll(".option-group");
-    optionGroups.forEach(group => {
-        const buttons = group.querySelectorAll(".option-btn");
-        buttons.forEach(btn => btn.classList.remove("selected"));
-        if (buttons.length > 0) {
-            buttons[0].classList.add("selected");
+    // Алгоритмы шифрования - выбираем Camellia
+    selectOptionByValue("algorithm-select", "Camellia");
+    
+    // Режимы шифрования - выбираем CBC
+    selectOptionByValue("mode-select", "CBC");
+    
+    // Режимы набивки - выбираем PKCS7
+    selectOptionByValue("padding-select", "PKCS7");
+}
+
+// Вспомогательная функция для выбора опции по значению
+function selectOptionByValue(groupId, value) {
+    const group = document.getElementById(groupId);
+    const buttons = group.querySelectorAll(".option-btn");
+    
+    // Сначала снимаем выделение со всех кнопок
+    buttons.forEach(btn => btn.classList.remove("selected"));
+    
+    // Находим кнопку с нужным значением и выделяем её
+    let found = false;
+    buttons.forEach(btn => {
+        if (btn.getAttribute("data-value") === value) {
+            btn.classList.add("selected");
+            found = true;
         }
     });
+    
+    // Если кнопки с таким значением нет, выбираем первую
+    if (!found && buttons.length > 0) {
+        buttons[0].classList.add("selected");
+    }
 }
 
 function closeModal() {

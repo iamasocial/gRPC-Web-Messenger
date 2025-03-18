@@ -78,7 +78,23 @@ func (cs *chatService) CreateChat(ctx context.Context, req *pb.CreateChatRequest
 		return nil, status.Errorf(codes.AlreadyExists, "chat with user '%s' already exists", req.Username)
 	}
 
-	err = cs.chatRepo.CreateChat(ctx, userId, targerUser.ID)
+	// Получаем параметры шифрования из запроса
+	encryptionAlgorithm := req.GetEncryptionAlgorithm()
+	encryptionMode := req.GetEncryptionMode()
+	encryptionPadding := req.GetEncryptionPadding()
+
+	// Устанавливаем дефолтные значения, если не указаны
+	if encryptionAlgorithm == "" {
+		encryptionAlgorithm = "Camellia"
+	}
+	if encryptionMode == "" {
+		encryptionMode = "CBC"
+	}
+	if encryptionPadding == "" {
+		encryptionPadding = "PKCS7"
+	}
+
+	err = cs.chatRepo.CreateChat(ctx, userId, targerUser.ID, encryptionAlgorithm, encryptionMode, encryptionPadding)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create chat: %v", err)
 	}
@@ -94,14 +110,40 @@ func (cs *chatService) GetChats(ctx context.Context, req *pb.GetChatsRequst) (*p
 		return nil, status.Errorf(codes.Unauthenticated, "User ID is missing in context")
 	}
 
-	usernames, err := cs.chatRepo.GetChatsByUserId(ctx, userId)
+	chatsInfo, err := cs.chatRepo.GetChatsByUserId(ctx, userId)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to fetch chats: %v", err)
 	}
 
-	return &pb.GetChatsResponse{
-		Usernames: usernames,
-	}, nil
+	// Создаем список чатов для ответа
+	response := &pb.GetChatsResponse{}
+	for _, chat := range chatsInfo {
+		// Используем пустые строки для NULL-значений
+		encAlgorithm := ""
+		if chat.EncryptionAlgorithm != nil {
+			encAlgorithm = *chat.EncryptionAlgorithm
+		}
+
+		encMode := ""
+		if chat.EncryptionMode != nil {
+			encMode = *chat.EncryptionMode
+		}
+
+		encPadding := ""
+		if chat.EncryptionPadding != nil {
+			encPadding = *chat.EncryptionPadding
+		}
+
+		chatInfo := &pb.ChatInfo{
+			Username:            chat.Username,
+			EncryptionAlgorithm: encAlgorithm,
+			EncryptionMode:      encMode,
+			EncryptionPadding:   encPadding,
+		}
+		response.Chats = append(response.Chats, chatInfo)
+	}
+
+	return response, nil
 }
 
 func (cs *chatService) DeleteChat(ctx context.Context, req *pb.DeleteChatRequest) (*pb.DeleteChatResponse, error) {

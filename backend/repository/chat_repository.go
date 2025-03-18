@@ -9,9 +9,9 @@ import (
 )
 
 type ChatRepository interface {
-	CreateChat(ctx context.Context, user1ID, user2ID uint64) error
+	CreateChat(ctx context.Context, user1ID, user2ID uint64, encAlgorithm, encMode, encPadding string) error
 	GetChatByUserIds(ctx context.Context, userId1, userId2 uint64) (uint64, error)
-	GetChatsByUserId(ctx context.Context, userId uint64) ([]string, error)
+	GetChatsByUserId(ctx context.Context, userId uint64) ([]entities.ChatInfoDTO, error)
 	SendMessage(ctx context.Context, chatId, senderId uint64, content string) error
 	DeleteChat(ctx context.Context, chatId uint64) error
 	GetChatByUsername(ctx context.Context, username string) (*entities.Chat, error)
@@ -26,14 +26,14 @@ func NewChatRepository(db *sqlx.DB) *chatRepository {
 	return &chatRepository{db: db}
 }
 
-func (cr *chatRepository) CreateChat(ctx context.Context, user1ID, user2ID uint64) error {
+func (cr *chatRepository) CreateChat(ctx context.Context, user1ID, user2ID uint64, encAlgorithm, encMode, encPadding string) error {
 	if user1ID > user2ID {
 		user1ID, user2ID = user2ID, user1ID
 	}
 
-	// var chatId uint64
-	query := `INSERT INTO chats (user_1_id, user_2_id) VALUES ($1, $2)`
-	_, err := cr.db.ExecContext(ctx, query, user1ID, user2ID)
+	query := `INSERT INTO chats (user_1_id, user_2_id, encryption_algorithm, encryption_mode, encryption_padding) 
+	          VALUES ($1, $2, $3, $4, $5)`
+	_, err := cr.db.ExecContext(ctx, query, user1ID, user2ID, encAlgorithm, encMode, encPadding)
 
 	return err
 }
@@ -49,25 +49,28 @@ func (cr *chatRepository) GetChatByUserIds(ctx context.Context, userId1, userId2
 	return chatId, nil
 }
 
-func (cr *chatRepository) GetChatsByUserId(ctx context.Context, userId uint64) ([]string, error) {
-	var usernames []string
+func (cr *chatRepository) GetChatsByUserId(ctx context.Context, userId uint64) ([]entities.ChatInfoDTO, error) {
+	var chats []entities.ChatInfoDTO
 	query := `
 	SELECT 
-			CASE 
-				WHEN user_1_id = $1 THEN u2.username
-				WHEN user_2_id = $1 THEN u1.username
-			END AS username
-		FROM chats
-		JOIN users u1 ON u1.id = chats.user_1_id
-		JOIN users u2 ON u2.id = chats.user_2_id
-		WHERE user_1_id = $1 OR user_2_id = $1`
+		CASE 
+			WHEN user_1_id = $1 THEN u2.username
+			WHEN user_2_id = $1 THEN u1.username
+		END AS username,
+		c.encryption_algorithm,
+		c.encryption_mode,
+		c.encryption_padding
+	FROM chats c
+	JOIN users u1 ON u1.id = c.user_1_id
+	JOIN users u2 ON u2.id = c.user_2_id
+	WHERE c.user_1_id = $1 OR c.user_2_id = $1`
 
-	err := cr.db.SelectContext(ctx, &usernames, query, userId)
+	err := cr.db.SelectContext(ctx, &chats, query, userId)
 	if err != nil {
 		return nil, err
 	}
 
-	return usernames, nil
+	return chats, nil
 }
 
 func (cr *chatRepository) DeleteChat(ctx context.Context, chatId uint64) error {

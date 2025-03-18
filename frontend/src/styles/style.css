@@ -160,18 +160,34 @@ body {
 }
 
 .chat-item {
-    padding: 15px;
-    border-bottom: 1px solid #444;
+    padding: 12px 15px;
+    border-bottom: 1px solid #eee;
     cursor: pointer;
-    transition: background 0.3s;
+}
+
+.chat-item .username {
+    font-weight: bold;
+    font-size: 1.1em;
+    margin-bottom: 3px;
+}
+
+.chat-item .encryption-info {
+    font-size: 0.8em;
+    color: #777;
+    margin-top: 2px;
+}
+
+.chat-item .encryption-param {
+    display: inline-block;
+    margin-right: 8px;
 }
 
 .chat-item:hover {
-    background: #555;
+    background-color: #f5f5f5;
 }
 
 .chat-item.active {
-    background: #666;
+    background-color: #e9f5ff;
 }
 
 /* Окно чата */
@@ -429,15 +445,16 @@ body {
     box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
 }
 
-.option-btn.active {
+.option-btn.selected {
     background: #007bff;
     color: white;
     border-color: #007bff;
     box-shadow: 0 2px 8px rgba(0,123,255,0.3);
+    transform: scale(0.98);
 }
 
 /* Индикатор выбора */
-.option-btn.active::after {
+.option-btn.selected::after {
     content: '✓';
     margin-left: 8px;
     font-weight: bold;

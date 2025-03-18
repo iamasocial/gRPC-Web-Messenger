@@ -16,16 +16,27 @@ service ChatService {
 
 message CreateChatRequest {
     string username = 1;
+    string encryption_algorithm = 2;
+    string encryption_mode = 3;
+    string encryption_padding = 4;
 }
 
 message CreateChatResponse {
     string username = 1;
 }
 
+// Информация о чате
+message ChatInfo {
+    string username = 1;  // Имя собеседника
+    string encryption_algorithm = 2;  // Алгоритм шифрования
+    string encryption_mode = 3;       // Режим шифрования
+    string encryption_padding = 4;    // Тип набивки
+}
+
 message GetChatsRequst {}
 
 message GetChatsResponse {
-    repeated string usernames = 1;
+    repeated ChatInfo chats = 1;  // Список информации о чатах
 }
 
 message DeleteChatRequest {

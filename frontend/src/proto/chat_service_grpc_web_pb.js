@@ -8,7 +8,7 @@
 // versions:
 // 	protoc-gen-grpc-web v1.5.0
 // 	protoc              v5.28.3
-// source: chat_service.proto
+// source: proto/chat_service.proto
 
 
 /* eslint-disable */
@@ -33,7 +33,7 @@ proto.messenger = require('./chat_service_pb.js');
 proto.messenger.ChatServiceClient =
     function(hostname, credentials, options) {
   if (!options) options = {};
-  options.format = 'binary';
+  options.format = 'text';
 
   /**
    * @private @const {!grpc.web.GrpcWebClientBase} The client
@@ -59,7 +59,7 @@ proto.messenger.ChatServiceClient =
 proto.messenger.ChatServicePromiseClient =
     function(hostname, credentials, options) {
   if (!options) options = {};
-  options.format = 'binary';
+  options.format = 'text';
 
   /**
    * @private @const {!grpc.web.GrpcWebClientBase} The client

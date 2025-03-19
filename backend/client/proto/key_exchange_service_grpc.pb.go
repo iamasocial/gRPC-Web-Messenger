@@ -19,8 +19,9 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	KeyExchangeService_InitiateKeyExchange_FullMethodName = "/messenger.KeyExchangeService/InitiateKeyExchange"
-	KeyExchangeService_CompleteKeyExchange_FullMethodName = "/messenger.KeyExchangeService/CompleteKeyExchange"
+	KeyExchangeService_InitKeyExchange_FullMethodName      = "/messenger.KeyExchangeService/InitKeyExchange"
+	KeyExchangeService_CompleteKeyExchange_FullMethodName  = "/messenger.KeyExchangeService/CompleteKeyExchange"
+	KeyExchangeService_GetKeyExchangeParams_FullMethodName = "/messenger.KeyExchangeService/GetKeyExchangeParams"
 )
 
 // KeyExchangeServiceClient is the client API for KeyExchangeService service.
@@ -28,21 +29,24 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
 // KeyExchangeService предоставляет методы для безопасного обмена ключами
-// по протоколу Диффи-Хеллмана между клиентом и сервером.
+// по протоколу Диффи-Хеллмана между пользователями, где сервер выступает
+// в роли посредника для хранения и передачи параметров.
 type KeyExchangeServiceClient interface {
-	// InitiateKeyExchange начинает процесс обмена ключами.
-	// Сервер отправляет клиенту:
-	// 1. Большое простое число p (модуль)
-	// 2. Генератор g (примитивный корень по модулю p)
-	// 3. Публичный ключ сервера A = g^a mod p, где a - секретное число сервера
-	InitiateKeyExchange(ctx context.Context, in *InitiateKeyExchangeRequest, opts ...grpc.CallOption) (*InitiateKeyExchangeResponse, error)
-	// CompleteKeyExchange завершает процесс обмена ключами.
-	// 1. Клиент отправляет свой публичный ключ B = g^b mod p, где b - секретное число клиента
-	// 2. Обе стороны могут вычислить общий секретный ключ:
-	//   - Сервер вычисляет K = B^a mod p
-	//   - Клиент вычисляет K = A^b mod p
-	//     В результате K = g^(ab) mod p у обеих сторон
+	// InitKeyExchange инициирует процесс обмена ключами.
+	// Пользователь отправляет:
+	// 1. Имя собеседника
+	// 2. Генератор g
+	// 3. Большое простое число p
+	// 4. Свой публичный ключ A = g^a mod p, где a - приватный ключ пользователя
+	InitKeyExchange(ctx context.Context, in *InitKeyExchangeRequest, opts ...grpc.CallOption) (*InitKeyExchangeResponse, error)
+	// CompleteKeyExchange завершает обмен ключами.
+	// Второй пользователь отправляет:
+	// 1. Имя собеседника
+	// 2. Свой публичный ключ B = g^b mod p, где b - приватный ключ второго пользователя
 	CompleteKeyExchange(ctx context.Context, in *CompleteKeyExchangeRequest, opts ...grpc.CallOption) (*CompleteKeyExchangeResponse, error)
+	// GetKeyExchangeParams получает параметры обмена ключами, сохраненные на сервере
+	// для конкретного собеседника.
+	GetKeyExchangeParams(ctx context.Context, in *GetKeyExchangeParamsRequest, opts ...grpc.CallOption) (*GetKeyExchangeParamsResponse, error)
 }
 
 type keyExchangeServiceClient struct {
@@ -53,10 +57,10 @@ func NewKeyExchangeServiceClient(cc grpc.ClientConnInterface) KeyExchangeService
 	return &keyExchangeServiceClient{cc}
 }
 
-func (c *keyExchangeServiceClient) InitiateKeyExchange(ctx context.Context, in *InitiateKeyExchangeRequest, opts ...grpc.CallOption) (*InitiateKeyExchangeResponse, error) {
+func (c *keyExchangeServiceClient) InitKeyExchange(ctx context.Context, in *InitKeyExchangeRequest, opts ...grpc.CallOption) (*InitKeyExchangeResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(InitiateKeyExchangeResponse)
-	err := c.cc.Invoke(ctx, KeyExchangeService_InitiateKeyExchange_FullMethodName, in, out, cOpts...)
+	out := new(InitKeyExchangeResponse)
+	err := c.cc.Invoke(ctx, KeyExchangeService_InitKeyExchange_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -73,26 +77,39 @@ func (c *keyExchangeServiceClient) CompleteKeyExchange(ctx context.Context, in *
 	return out, nil
 }
 
+func (c *keyExchangeServiceClient) GetKeyExchangeParams(ctx context.Context, in *GetKeyExchangeParamsRequest, opts ...grpc.CallOption) (*GetKeyExchangeParamsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetKeyExchangeParamsResponse)
+	err := c.cc.Invoke(ctx, KeyExchangeService_GetKeyExchangeParams_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // KeyExchangeServiceServer is the server API for KeyExchangeService service.
 // All implementations must embed UnimplementedKeyExchangeServiceServer
 // for forward compatibility.
 //
 // KeyExchangeService предоставляет методы для безопасного обмена ключами
-// по протоколу Диффи-Хеллмана между клиентом и сервером.
+// по протоколу Диффи-Хеллмана между пользователями, где сервер выступает
+// в роли посредника для хранения и передачи параметров.
 type KeyExchangeServiceServer interface {
-	// InitiateKeyExchange начинает процесс обмена ключами.
-	// Сервер отправляет клиенту:
-	// 1. Большое простое число p (модуль)
-	// 2. Генератор g (примитивный корень по модулю p)
-	// 3. Публичный ключ сервера A = g^a mod p, где a - секретное число сервера
-	InitiateKeyExchange(context.Context, *InitiateKeyExchangeRequest) (*InitiateKeyExchangeResponse, error)
-	// CompleteKeyExchange завершает процесс обмена ключами.
-	// 1. Клиент отправляет свой публичный ключ B = g^b mod p, где b - секретное число клиента
-	// 2. Обе стороны могут вычислить общий секретный ключ:
-	//   - Сервер вычисляет K = B^a mod p
-	//   - Клиент вычисляет K = A^b mod p
-	//     В результате K = g^(ab) mod p у обеих сторон
+	// InitKeyExchange инициирует процесс обмена ключами.
+	// Пользователь отправляет:
+	// 1. Имя собеседника
+	// 2. Генератор g
+	// 3. Большое простое число p
+	// 4. Свой публичный ключ A = g^a mod p, где a - приватный ключ пользователя
+	InitKeyExchange(context.Context, *InitKeyExchangeRequest) (*InitKeyExchangeResponse, error)
+	// CompleteKeyExchange завершает обмен ключами.
+	// Второй пользователь отправляет:
+	// 1. Имя собеседника
+	// 2. Свой публичный ключ B = g^b mod p, где b - приватный ключ второго пользователя
 	CompleteKeyExchange(context.Context, *CompleteKeyExchangeRequest) (*CompleteKeyExchangeResponse, error)
+	// GetKeyExchangeParams получает параметры обмена ключами, сохраненные на сервере
+	// для конкретного собеседника.
+	GetKeyExchangeParams(context.Context, *GetKeyExchangeParamsRequest) (*GetKeyExchangeParamsResponse, error)
 	mustEmbedUnimplementedKeyExchangeServiceServer()
 }
 
@@ -103,11 +120,14 @@ type KeyExchangeServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedKeyExchangeServiceServer struct{}
 
-func (UnimplementedKeyExchangeServiceServer) InitiateKeyExchange(context.Context, *InitiateKeyExchangeRequest) (*InitiateKeyExchangeResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method InitiateKeyExchange not implemented")
+func (UnimplementedKeyExchangeServiceServer) InitKeyExchange(context.Context, *InitKeyExchangeRequest) (*InitKeyExchangeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method InitKeyExchange not implemented")
 }
 func (UnimplementedKeyExchangeServiceServer) CompleteKeyExchange(context.Context, *CompleteKeyExchangeRequest) (*CompleteKeyExchangeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CompleteKeyExchange not implemented")
+}
+func (UnimplementedKeyExchangeServiceServer) GetKeyExchangeParams(context.Context, *GetKeyExchangeParamsRequest) (*GetKeyExchangeParamsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetKeyExchangeParams not implemented")
 }
 func (UnimplementedKeyExchangeServiceServer) mustEmbedUnimplementedKeyExchangeServiceServer() {}
 func (UnimplementedKeyExchangeServiceServer) testEmbeddedByValue()                            {}
@@ -130,20 +150,20 @@ func RegisterKeyExchangeServiceServer(s grpc.ServiceRegistrar, srv KeyExchangeSe
 	s.RegisterService(&KeyExchangeService_ServiceDesc, srv)
 }
 
-func _KeyExchangeService_InitiateKeyExchange_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(InitiateKeyExchangeRequest)
+func _KeyExchangeService_InitKeyExchange_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(InitKeyExchangeRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(KeyExchangeServiceServer).InitiateKeyExchange(ctx, in)
+		return srv.(KeyExchangeServiceServer).InitKeyExchange(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: KeyExchangeService_InitiateKeyExchange_FullMethodName,
+		FullMethod: KeyExchangeService_InitKeyExchange_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(KeyExchangeServiceServer).InitiateKeyExchange(ctx, req.(*InitiateKeyExchangeRequest))
+		return srv.(KeyExchangeServiceServer).InitKeyExchange(ctx, req.(*InitKeyExchangeRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -166,6 +186,24 @@ func _KeyExchangeService_CompleteKeyExchange_Handler(srv interface{}, ctx contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _KeyExchangeService_GetKeyExchangeParams_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetKeyExchangeParamsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(KeyExchangeServiceServer).GetKeyExchangeParams(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: KeyExchangeService_GetKeyExchangeParams_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(KeyExchangeServiceServer).GetKeyExchangeParams(ctx, req.(*GetKeyExchangeParamsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // KeyExchangeService_ServiceDesc is the grpc.ServiceDesc for KeyExchangeService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -174,12 +212,16 @@ var KeyExchangeService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*KeyExchangeServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "InitiateKeyExchange",
-			Handler:    _KeyExchangeService_InitiateKeyExchange_Handler,
+			MethodName: "InitKeyExchange",
+			Handler:    _KeyExchangeService_InitKeyExchange_Handler,
 		},
 		{
 			MethodName: "CompleteKeyExchange",
 			Handler:    _KeyExchangeService_CompleteKeyExchange_Handler,
+		},
+		{
+			MethodName: "GetKeyExchangeParams",
+			Handler:    _KeyExchangeService_GetKeyExchangeParams_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

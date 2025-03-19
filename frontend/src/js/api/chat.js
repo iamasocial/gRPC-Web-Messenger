@@ -1,107 +1,6 @@
 import { chatClient } from "./client"; 
 import socket from "./websocket.js";
 import { GetChatsRequst, ConnectRequest, CreateChatRequest } from "../../proto/chat_service_pb";
-import { generateDHKeyPair, exportPublicKey, importPublicKey, deriveSharedSecret } from '../crypto/encryption.js';
-
-/**
- * Функции для работы с ключами шифрования
- */
-
-/**
- * Генерирует уникальный ключ для пары пользователей
- * @param {string} username1 - Имя первого пользователя
- * @param {string} username2 - Имя второго пользователя
- * @returns {string} - Уникальный ключ для пары пользователей
- */
-function generateUserPairKey(username1, username2) {
-  // Сортируем имена, чтобы ключ был одинаковым независимо от порядка
-  const sortedUsernames = [username1, username2].sort();
-  return `key_${sortedUsernames[0]}_${sortedUsernames[1]}`;
-}
-
-/**
- * Сохраняет ключ шифрования для пары пользователей
- * @param {string} username1 - Имя первого пользователя
- * @param {string} username2 - Имя второго пользователя
- * @param {string} key - Ключ шифрования
- */
-export function saveEncryptionKey(username1, username2, key) {
-  const pairKey = generateUserPairKey(username1, username2);
-  const encryptionKeys = JSON.parse(localStorage.getItem('encryptionKeys') || '{}');
-  encryptionKeys[pairKey] = key;
-  localStorage.setItem('encryptionKeys', JSON.stringify(encryptionKeys));
-}
-
-/**
- * Получает ключ шифрования для пары пользователей
- * @param {string} username1 - Имя первого пользователя
- * @param {string} username2 - Имя второго пользователя
- * @returns {string|null} - Ключ шифрования или null, если ключ не найден
- */
-export function getEncryptionKey(username1, username2) {
-  const pairKey = generateUserPairKey(username1, username2);
-  const encryptionKeys = JSON.parse(localStorage.getItem('encryptionKeys') || '{}');
-  return encryptionKeys[pairKey] || null;
-}
-
-/**
- * Проверяет, существует ли ключ для пары пользователей
- * @param {string} username1 - Имя первого пользователя
- * @param {string} username2 - Имя второго пользователя
- * @returns {boolean} - true, если ключ существует, иначе false
- */
-export function hasEncryptionKey(username1, username2) {
-  return getEncryptionKey(username1, username2) !== null;
-}
-
-/**
- * Выполняет обмен ключами между пользователями (реализация Диффи-Хеллмана)
- * @param {string} otherUsername - Имя собеседника
- * @param {Function} callback - Функция обратного вызова (err, sharedKey)
- */
-export async function exchangeKeys(otherUsername, callback) {
-  try {
-    const currentUsername = localStorage.getItem('username');
-    
-    // Проверяем, существует ли уже ключ для этого собеседника
-    if (hasEncryptionKey(currentUsername, otherUsername)) {
-      const existingKey = getEncryptionKey(currentUsername, otherUsername);
-      callback(null, existingKey);
-      return;
-    }
-    
-    // 1. Генерируем пару ключей Диффи-Хеллмана
-    const keyPair = await generateDHKeyPair();
-    
-    // 2. Экспортируем публичный ключ для отправки собеседнику
-    const publicKeyBase64 = await exportPublicKey(keyPair.publicKey);
-    
-    // 3. Отправляем публичный ключ собеседнику
-    // Здесь нужно реализовать API для обмена ключами
-    // Пример:
-    // await sendPublicKey(otherUsername, publicKeyBase64);
-    
-    // 4. Получаем публичный ключ от собеседника
-    // const otherPublicKeyBase64 = await receivePublicKey(otherUsername);
-    
-    // Временное решение для демонстрации:
-    const otherPublicKeyBase64 = publicKeyBase64; // В реальном приложении здесь должен быть ключ от собеседника
-    
-    // 5. Импортируем публичный ключ собеседника
-    const otherPublicKey = await importPublicKey(otherPublicKeyBase64);
-    
-    // 6. Вычисляем общий секретный ключ
-    const sharedSecret = await deriveSharedSecret(keyPair.privateKey, otherPublicKey);
-    
-    // 7. Сохраняем ключ в локальном хранилище
-    saveEncryptionKey(currentUsername, otherUsername, sharedSecret);
-    
-    // 8. Возвращаем ключ через callback
-    callback(null, sharedSecret);
-  } catch (error) {
-    callback(error, null);
-  }
-}
 
 export function getChats(callback) {
     const token = localStorage.getItem('token');
@@ -284,19 +183,17 @@ export function createChat(username, encryptionParams = {}, callback) {
             callback(err, null)
             return;
         }
-        // После создания чата ключа шифрования еще нет
-        // Он будет создан позже с помощью функции exchangeKeys
         callback(null, response.getUsername());
     });
 }
 
 /**
- * Инициализирует защищенный чат с обменом ключами
+ * Инициализирует чат с пользователем
  * @param {string} username - Имя собеседника
  * @param {Object} encryptionParams - Параметры шифрования
  * @param {function} callback - Функция обратного вызова (err, chatInfo)
  */
-export function initSecureChat(username, encryptionParams = {}, callback) {
+export function initChat(username, encryptionParams = {}, callback) {
     // Если второй параметр - функция, значит encryptionParams не передан
     if (typeof encryptionParams === 'function') {
         callback = encryptionParams;
@@ -310,27 +207,16 @@ export function initSecureChat(username, encryptionParams = {}, callback) {
         padding: encryptionParams.padding || 'NoPadding'
     };
     
-    // Шаг 1: Создание чата
+    // Создание чата
     createChat(username, params, (err, otherUsername) => {
         if (err) {
             callback(err, null);
             return;
         }
         
-        // Шаг 2: Обмен ключами
-        exchangeKeys(otherUsername, (err, sharedKey) => {
-            if (err) {
-                console.error("Ошибка обмена ключами:", err);
-                callback(null, { username: otherUsername, keyExchanged: false });
-                return;
-            }
-            
-            callback(null, { 
-                username: otherUsername, 
-                keyExchanged: true, 
-                key: sharedKey,
-                encryptionParams: params 
-            });
+        callback(null, { 
+            username: otherUsername,
+            encryptionParams: params 
         });
     });
 }

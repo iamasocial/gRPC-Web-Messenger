@@ -39,12 +39,13 @@ func main() {
 	chatRepo := repository.NewChatRepository(db)
 	messageRepo := repository.NewMessageRepository(db)
 	fileRepo := repository.NewFileRepository(db)
+	keyExchangeRepo := repository.NewKeyExchangeRepository(db)
 
 	// Инициализируем сервисы
 	userService := service.NewUserService(userRepo)
 	chatService := service.NewChatService(chatRepo, userRepo, messageRepo, broker)
 	fileService := service.NewFileService(fileRepo, userRepo, chatRepo, baseFilePath)
-	keyExchangeService := service.NewKeyExchangeService()
+	keyExchangeService := service.NewKeyExchangeService(keyExchangeRepo, chatRepo, userRepo)
 
 	// Создаем и запускаем сервер
 	websocket := transport.NewWebSocketHandler()

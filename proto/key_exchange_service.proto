@@ -5,61 +5,74 @@ package messenger;
 option go_package = "./generated";
 
 // KeyExchangeService предоставляет методы для безопасного обмена ключами
-// по протоколу Диффи-Хеллмана между клиентом и сервером.
+// по протоколу Диффи-Хеллмана между пользователями, где сервер выступает
+// в роли посредника для хранения и передачи параметров.
 service KeyExchangeService {
-  // InitiateKeyExchange начинает процесс обмена ключами.
-  // Сервер отправляет клиенту:
-  // 1. Большое простое число p (модуль)
-  // 2. Генератор g (примитивный корень по модулю p)
-  // 3. Публичный ключ сервера A = g^a mod p, где a - секретное число сервера
-  rpc InitiateKeyExchange(InitiateKeyExchangeRequest) returns (InitiateKeyExchangeResponse);
+  // InitKeyExchange инициирует процесс обмена ключами.
+  // Пользователь отправляет:
+  // 1. Имя собеседника
+  // 2. Генератор g
+  // 3. Большое простое число p
+  // 4. Свой публичный ключ A = g^a mod p, где a - приватный ключ пользователя
+  rpc InitKeyExchange(InitKeyExchangeRequest) returns (InitKeyExchangeResponse);
   
-  // CompleteKeyExchange завершает процесс обмена ключами.
-  // 1. Клиент отправляет свой публичный ключ B = g^b mod p, где b - секретное число клиента
-  // 2. Обе стороны могут вычислить общий секретный ключ:
-  //    - Сервер вычисляет K = B^a mod p
-  //    - Клиент вычисляет K = A^b mod p
-  //    В результате K = g^(ab) mod p у обеих сторон
+  // CompleteKeyExchange завершает обмен ключами.
+  // Второй пользователь отправляет:
+  // 1. Имя собеседника
+  // 2. Свой публичный ключ B = g^b mod p, где b - приватный ключ второго пользователя
   rpc CompleteKeyExchange(CompleteKeyExchangeRequest) returns (CompleteKeyExchangeResponse);
+  
+  // GetKeyExchangeParams получает параметры обмена ключами, сохраненные на сервере
+  // для конкретного собеседника.
+  rpc GetKeyExchangeParams(GetKeyExchangeParamsRequest) returns (GetKeyExchangeParamsResponse);
 }
 
-// Запрос на начало обмена ключами
-message InitiateKeyExchangeRequest {
-  // Пустое сообщение, так как клиент только инициирует обмен
+// Статус обмена ключами
+enum KeyExchangeStatus {
+  NOT_STARTED = 0;      // Обмен ключами не начат
+  INITIATED = 1;        // Инициировано пользователем 1 (отправлены g, p, A)
+  COMPLETED = 2;        // Завершено пользователем 2 (отправлено B)
+  FAILED = 3;           // Ошибка обмена ключами
 }
 
-// Ответ сервера с параметрами для обмена ключами
-message InitiateKeyExchangeResponse {
-  // Модуль p (большое простое число)
-  bytes prime = 1;
-  
-  // Генератор g (примитивный корень по модулю p)
-  bytes generator = 2;
-  
-  // Публичный ключ сервера A = g^a mod p
-  bytes server_public = 3;
-  
-  // Уникальный идентификатор сессии обмена ключами
-  string session_id = 4;
+// Запрос на инициализацию обмена ключами
+message InitKeyExchangeRequest {
+  string username = 1;    // Имя собеседника
+  string dh_g = 2;        // Параметр g (генератор)
+  string dh_p = 3;        // Параметр p (простое число)
+  string dh_a_public = 4; // Публичный ключ A = g^a mod p
+}
+
+// Ответ на инициализацию обмена ключами
+message InitKeyExchangeResponse {
+  bool success = 1;
+  string error_message = 2;
 }
 
 // Запрос на завершение обмена ключами
 message CompleteKeyExchangeRequest {
-  // Публичный ключ клиента B = g^b mod p
-  bytes client_public = 1;
-  
-  // Идентификатор сессии, полученный в InitiateKeyExchangeResponse
-  string session_id = 2;
+  string username = 1;     // Имя собеседника
+  string dh_b_public = 2;  // Публичный ключ B = g^b mod p
 }
 
-// Ответ с подтверждением успешного обмена ключами
+// Ответ на завершение обмена ключами
 message CompleteKeyExchangeResponse {
-  // Подтверждение успешного создания общего секретного ключа
   bool success = 1;
-  
-  // Опциональное сообщение об ошибке
   string error_message = 2;
+}
 
-  // Общий секретный ключ (g^ab mod p)
-  bytes shared_secret = 3;
+// Запрос на получение параметров обмена ключами
+message GetKeyExchangeParamsRequest {
+  string username = 1;    // Имя собеседника
+}
+
+// Ответ с параметрами обмена ключами
+message GetKeyExchangeParamsResponse {
+  bool success = 1;
+  KeyExchangeStatus status = 2;  // Статус обмена ключами
+  string dh_g = 3;               // Параметр g (генератор)
+  string dh_p = 4;               // Параметр p (простое число)
+  string dh_a_public = 5;        // Публичный ключ A первого пользователя
+  string dh_b_public = 6;        // Публичный ключ B второго пользователя
+  string error_message = 7;
 } 

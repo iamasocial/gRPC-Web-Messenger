@@ -2,13 +2,11 @@ package service
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/hex"
-	"errors"
-	"math/big"
-	"sync"
-	"time"
+	"gRPCWebServer/backend/middleware"
+	"gRPCWebServer/backend/repository"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	pb "gRPCWebServer/backend/generated"
 )
@@ -16,126 +14,216 @@ import (
 // KeyExchangeService реализует протокол Диффи-Хеллмана для безопасного обмена ключами
 type KeyExchangeService struct {
 	pb.UnimplementedKeyExchangeServiceServer
-	mu sync.RWMutex
-
-	// Хранилище активных сессий обмена ключами
-	sessions map[string]*keyExchangeSession
+	keyExchangeRepo repository.KeyExchangeRepository
+	chatRepo        repository.ChatRepository
+	userRepo        repository.UserRepository
 }
-
-// keyExchangeSession хранит информацию о сессии обмена ключами
-type keyExchangeSession struct {
-	// Приватный ключ сервера (a)
-	serverPrivateKey *big.Int
-	// Публичный ключ сервера (A = g^a mod p)
-	serverPublicKey *big.Int
-	// Время создания сессии
-	createdAt time.Time
-	// Время жизни сессии (24 часа)
-	expiresAt time.Time
-}
-
-// Глобальные параметры для Диффи-Хеллмана
-var (
-	// Большое простое число (2048 бит)
-	prime, _ = new(big.Int).SetString("FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74020BBEA63B139B22514A08798E3404DDEF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245E485B576625E7EC6F44C42E9A637ED6B0BFF5CB6F406B7EDEE386BFB5A899FA5AE9F24117C4B1FE649286651ECE45B3DC2007CB8A163BF0598DA48361C55D39A69163FA8FD24CF5F83655D23DCA3AD961C62F356208552BB9ED529077096966D670C354E4ABC9804F1746C08CA18217C32905E462E36CE3BE39E772C180E86039B2783A2EC07A28FB5C55DF06F4C52C9DE2BCBF6955817183995497CEA956AE515D2261898FA051015728E5A8AACAA68FFFFFFFFFFFFFFFF", 16)
-	// Генератор группы (2)
-	generator = big.NewInt(2)
-)
 
 // NewKeyExchangeService создает новый экземпляр сервиса обмена ключами
-func NewKeyExchangeService() *KeyExchangeService {
+func NewKeyExchangeService(
+	keyExchangeRepo repository.KeyExchangeRepository,
+	chatRepo repository.ChatRepository,
+	userRepo repository.UserRepository,
+) *KeyExchangeService {
 	return &KeyExchangeService{
-		sessions: make(map[string]*keyExchangeSession),
+		keyExchangeRepo: keyExchangeRepo,
+		chatRepo:        chatRepo,
+		userRepo:        userRepo,
 	}
 }
 
-// generateSessionID создает уникальный идентификатор сессии
-func generateSessionID() string {
-	// Генерируем случайные байты
-	bytes := make([]byte, 16)
-	rand.Read(bytes)
+// InitKeyExchange инициирует процесс обмена ключами
+func (s *KeyExchangeService) InitKeyExchange(ctx context.Context, req *pb.InitKeyExchangeRequest) (*pb.InitKeyExchangeResponse, error) {
+	// Получаем ID инициатора (текущего пользователя) из контекста
+	initiatorID, ok := ctx.Value(middleware.TokenKey("user_id")).(uint64)
+	if !ok {
+		return nil, status.Errorf(codes.Unauthenticated, "User ID is missing in context")
+	}
 
-	// Создаем хеш SHA-256
-	hash := sha256.Sum256(bytes)
+	// Получаем пользователя-получателя по имени
+	receiverUsername := req.GetUsername()
+	if receiverUsername == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "Receiver username is required")
+	}
 
-	// Возвращаем первые 32 символа хеша в hex-формате
-	return hex.EncodeToString(hash[:16])
-}
-
-// InitiateKeyExchange начинает процесс обмена ключами
-func (s *KeyExchangeService) InitiateKeyExchange(ctx context.Context, req *pb.InitiateKeyExchangeRequest) (*pb.InitiateKeyExchangeResponse, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// Генерируем случайное число a (приватный ключ сервера)
-	privateKey := new(big.Int)
-	privateKey, err := rand.Int(rand.Reader, prime)
+	receiver, err := s.userRepo.GetByUsername(ctx, receiverUsername)
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.NotFound, "User '%s' not found", receiverUsername)
 	}
 
-	// Вычисляем публичный ключ сервера: A = g^a mod p
-	publicKey := new(big.Int).Exp(generator, privateKey, prime)
-
-	// Создаем новую сессию
-	sessionID := generateSessionID()
-	session := &keyExchangeSession{
-		serverPrivateKey: privateKey,
-		serverPublicKey:  publicKey,
-		createdAt:        time.Now(),
-		expiresAt:        time.Now().Add(24 * time.Hour),
+	// Проверяем, существует ли чат между пользователями
+	chatID, err := s.chatRepo.GetChatByUserIds(ctx, initiatorID, receiver.ID)
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "Chat with '%s' not found", receiverUsername)
 	}
-	s.sessions[sessionID] = session
 
-	return &pb.InitiateKeyExchangeResponse{
-		Prime:        prime.Bytes(),
-		Generator:    generator.Bytes(),
-		ServerPublic: publicKey.Bytes(),
-		SessionId:    sessionID,
+	// Проверяем, существуют ли активные обмены ключами
+	existingExchange, err := s.keyExchangeRepo.GetKeyExchangeByChatID(ctx, chatID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to check existing key exchanges: %v", err)
+	}
+
+	// Если есть незавершенный обмен ключами и этот пользователь не инициатор, отклоняем запрос
+	if existingExchange != nil && existingExchange.Status == "INITIATED" && existingExchange.InitiatorID != initiatorID {
+		return nil, status.Errorf(codes.FailedPrecondition, "There is an ongoing key exchange initiated by %s", receiverUsername)
+	}
+
+	// Проверяем параметры Диффи-Хеллмана
+	if req.GetDhG() == "" || req.GetDhP() == "" || req.GetDhAPublic() == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "Missing Diffie-Hellman parameters")
+	}
+
+	// Создаем новую запись об обмене ключами
+	_, err = s.keyExchangeRepo.CreateKeyExchange(
+		ctx,
+		chatID,
+		initiatorID,
+		receiver.ID,
+		req.GetDhG(),
+		req.GetDhP(),
+		req.GetDhAPublic(),
+	)
+
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to create key exchange: %v", err)
+	}
+
+	return &pb.InitKeyExchangeResponse{
+		Success: true,
 	}, nil
 }
 
-// CompleteKeyExchange завершает процесс обмена ключами
+// CompleteKeyExchange завершает обмен ключами
 func (s *KeyExchangeService) CompleteKeyExchange(ctx context.Context, req *pb.CompleteKeyExchangeRequest) (*pb.CompleteKeyExchangeResponse, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// Получаем сессию
-	session, exists := s.sessions[req.SessionId]
-	if !exists {
-		return nil, errors.New("session not found")
+	// Получаем ID получателя (текущего пользователя) из контекста
+	recipientID, ok := ctx.Value(middleware.TokenKey("user_id")).(uint64)
+	if !ok {
+		return nil, status.Errorf(codes.Unauthenticated, "User ID is missing in context")
 	}
 
-	// Проверяем срок действия сессии
-	if time.Now().After(session.expiresAt) {
-		delete(s.sessions, req.SessionId)
-		return nil, errors.New("session expired")
+	// Получаем пользователя-инициатора по имени
+	initiatorUsername := req.GetUsername()
+	if initiatorUsername == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "Initiator username is required")
 	}
 
-	// Преобразуем публичный ключ клиента в big.Int
-	clientPublicKey := new(big.Int).SetBytes(req.ClientPublic)
+	initiator, err := s.userRepo.GetByUsername(ctx, initiatorUsername)
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "User '%s' not found", initiatorUsername)
+	}
 
-	// Вычисляем общий секрет: K = (g^b)^a mod p = g^(ab) mod p
-	sharedSecret := new(big.Int).Exp(clientPublicKey, session.serverPrivateKey, prime)
+	// Проверяем, существует ли чат между пользователями
+	chatID, err := s.chatRepo.GetChatByUserIds(ctx, recipientID, initiator.ID)
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "Chat with '%s' not found", initiatorUsername)
+	}
 
-	// Удаляем сессию после успешного обмена
-	delete(s.sessions, req.SessionId)
+	// Получаем активный обмен ключами
+	exchange, err := s.keyExchangeRepo.GetKeyExchangeByChatID(ctx, chatID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to get key exchange: %v", err)
+	}
+
+	if exchange == nil {
+		return nil, status.Errorf(codes.NotFound, "No active key exchange found")
+	}
+
+	// Проверяем, что обмен ключами находится в статусе "INITIATED"
+	if exchange.Status != "INITIATED" {
+		return nil, status.Errorf(codes.FailedPrecondition, "Key exchange is in %s status and cannot be completed", exchange.Status)
+	}
+
+	// Проверяем, что текущий пользователь является получателем
+	if exchange.RecipientID != recipientID {
+		return nil, status.Errorf(codes.PermissionDenied, "Only the recipient can complete the key exchange")
+	}
+
+	// Проверяем параметр публичного ключа B
+	if req.GetDhBPublic() == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "Missing public key B")
+	}
+
+	// Обновляем запись обмена ключами с ключом B
+	err = s.keyExchangeRepo.CompleteKeyExchange(ctx, exchange.ID, req.GetDhBPublic())
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to complete key exchange: %v", err)
+	}
 
 	return &pb.CompleteKeyExchangeResponse{
-		Success:      true,
-		SharedSecret: sharedSecret.Bytes(),
+		Success: true,
 	}, nil
 }
 
-// cleanupExpiredSessions удаляет истекшие сессии
-func (s *KeyExchangeService) cleanupExpiredSessions() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	now := time.Now()
-	for sessionID, session := range s.sessions {
-		if now.After(session.expiresAt) {
-			delete(s.sessions, sessionID)
-		}
+// GetKeyExchangeParams получает параметры обмена ключами
+func (s *KeyExchangeService) GetKeyExchangeParams(ctx context.Context, req *pb.GetKeyExchangeParamsRequest) (*pb.GetKeyExchangeParamsResponse, error) {
+	// Получаем ID текущего пользователя из контекста
+	userID, ok := ctx.Value(middleware.TokenKey("user_id")).(uint64)
+	if !ok {
+		return nil, status.Errorf(codes.Unauthenticated, "User ID is missing in context")
 	}
+
+	// Получаем пользователя-собеседника по имени
+	peerUsername := req.GetUsername()
+	if peerUsername == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "Peer username is required")
+	}
+
+	peer, err := s.userRepo.GetByUsername(ctx, peerUsername)
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "User '%s' not found", peerUsername)
+	}
+
+	// Проверяем, существует ли чат между пользователями
+	chatID, err := s.chatRepo.GetChatByUserIds(ctx, userID, peer.ID)
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "Chat with '%s' not found", peerUsername)
+	}
+
+	// Получаем активный обмен ключами
+	exchange, err := s.keyExchangeRepo.GetKeyExchangeByChatID(ctx, chatID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "Failed to get key exchange: %v", err)
+	}
+
+	response := &pb.GetKeyExchangeParamsResponse{
+		Success: exchange != nil,
+	}
+
+	if exchange == nil {
+		response.Status = pb.KeyExchangeStatus_NOT_STARTED
+		return response, nil
+	}
+
+	// Преобразуем статус
+	switch exchange.Status {
+	case "NOT_STARTED":
+		response.Status = pb.KeyExchangeStatus_NOT_STARTED
+	case "INITIATED":
+		response.Status = pb.KeyExchangeStatus_INITIATED
+	case "COMPLETED":
+		response.Status = pb.KeyExchangeStatus_COMPLETED
+	case "FAILED":
+		response.Status = pb.KeyExchangeStatus_FAILED
+	default:
+		response.Status = pb.KeyExchangeStatus_NOT_STARTED
+	}
+
+	// Заполняем параметры Диффи-Хеллмана
+	if exchange.DHG.Valid {
+		response.DhG = exchange.DHG.String
+	}
+
+	if exchange.DHP.Valid {
+		response.DhP = exchange.DHP.String
+	}
+
+	if exchange.DHA.Valid {
+		response.DhAPublic = exchange.DHA.String
+	}
+
+	if exchange.DHB.Valid {
+		response.DhBPublic = exchange.DHB.String
+	}
+
+	return response, nil
 }

@@ -364,81 +364,94 @@ function createDateDivider(dateText) {
 }
 
 function connectToChatHandler(username) {
+    console.log(`Подключение к чату с ${username}...`);
     selectedUser = username;
     
-    // Очистить текущий активный чат в UI
-    const activeChatItem = document.querySelector('.chat-item.active');
-    if (activeChatItem) {
-        activeChatItem.classList.remove('active');
+    if (!username) {
+        console.error('Имя пользователя не указано');
+        return;
     }
     
-    // Установить новый активный чат
-    const chatItem = document.querySelector(`.chat-item[data-username="${username}"]`);
-    if (chatItem) {
-        chatItem.classList.add('active');
+    // Если есть текущий чат, останавливаем его
+    if (currentChat) {
+        stopChat();
     }
     
-    // Очистить контейнер сообщений
-    const chatMessages = document.getElementById('chat-messages');
-    if (chatMessages) {
-        chatMessages.innerHTML = '';
-        lastDisplayedDate = null; // Сбрасываем последнюю отображенную дату
-    }
-    
-    // Обновить заголовок чата
+    // Сразу показываем имя пользователя в заголовке чата
     const chatTitle = document.getElementById('chat-title');
     if (chatTitle) {
         chatTitle.textContent = username;
     }
     
-    // Если есть текущий чат, остановить его
-    if (currentChat) {
-        stopChat();
+    // Очищаем область сообщений и сбрасываем последнюю отображенную дату
+    const messagesContainer = document.getElementById('chat-messages');
+    if (messagesContainer) {
+        messagesContainer.innerHTML = '';
+        lastDisplayedDate = null;
     }
     
-    // Перед подключением к чату проверим статус обмена ключами
+    // Активируем чат в боковой панели
+    const chatItems = document.querySelectorAll('.chat-item');
+    chatItems.forEach(item => {
+        item.classList.remove('active');
+        if (item.dataset.username === username) {
+            item.classList.add('active');
+        }
+    });
+    
+    // Находим и скрываем футер перед началом обмена ключами
+    const chatFooter = document.querySelector('.chat-footer');
+    if (chatFooter) {
+        chatFooter.style.display = 'none';
+    }
+    
+    // Показываем спиннер загрузки
+    showKeyExchangeLoader(true);
+    
+    // Обновляем URL с параметром выбранного чата
+    const urlParams = new URLSearchParams(window.location.search);
+    urlParams.set('chat', username);
+    window.history.replaceState({}, '', `${window.location.pathname}?${urlParams}`);
+    
+    // Показываем кнопку отключения
+    const disconnectBtn = document.getElementById("disconnect-btn");
+    if (disconnectBtn) {
+        disconnectBtn.style.display = "block";
+    }
+    
+    // Проверяем статус обмена ключами
     checkKeyExchangeStatus(username, (err, status) => {
-        // Продолжаем подключение к чату, независимо от статуса обмена ключами
-        // Даже если произошла ошибка, мы всё равно подключаемся
+        if (err) {
+            console.error(`Ошибка проверки статуса обмена ключами: ${err.message}`);
+            showErrorToast('Ошибка при подключении к чату');
+            showKeyExchangeLoader(false);
+            return;
+        }
         
-        // Подключиться к новому чату
-        connectToChat(username, (err) => {
+        console.log(`Статус обмена ключами: ${status}`);
+        
+        // Подключаемся к чату через WebSocket
+        connectToChat(username, (err, success) => {
             if (err) {
-                console.error("Connect to chat error:", err);
+                console.error(`Ошибка подключения к чату: ${err.message}`);
+                showErrorToast('Ошибка при подключении к чату');
+                showKeyExchangeLoader(false);
                 return;
             }
-
+            
+            console.log(`Подключение к чату с ${username} успешно установлено`);
             currentChat = username;
             
-            // Запускаем чат и регистрируем обработчик входящих сообщений
-            startChat(handleIncomingMessage);
-            
-            // Обновить URL с параметром выбранного чата
-            const urlParams = new URLSearchParams(window.location.search);
-            urlParams.set('chat', username);
-            window.history.replaceState({}, '', `${window.location.pathname}?${urlParams}`);
-            
-            // Разблокируем элементы ввода
-            const messageInput = document.getElementById("message-input");
-            if (messageInput) {
-                messageInput.disabled = false;
-                messageInput.placeholder = "Напишите сообщение...";
-            }
-            
-            const fileButton = document.getElementById("file-button");
-            if (fileButton) {
-                fileButton.disabled = false;
-            }
-            
-            const disconnectBtn = document.getElementById("disconnect-btn");
-            if (disconnectBtn) {
-                disconnectBtn.style.display = "block";
-            }
-            
-            // Показываем футер чата
-            const chatFooter = document.querySelector('.chat-footer');
-            if (chatFooter) {
-                chatFooter.classList.add('active');
+            // Если обмен ключами уже завершен (status = 2), то запускаем чат сразу
+            if (status === 2) { // COMPLETED
+                showKeyExchangeLoader(false);
+                if (chatFooter) {
+                    chatFooter.style.display = 'flex';
+                }
+                startChatAfterKeyExchange(username);
+            } else {
+                // Иначе запускаем обмен ключами и дальше будем ждать его завершения
+                initDiffieHellmanExchange(username);
             }
         });
     });
@@ -449,13 +462,20 @@ function connectToChatHandler(username) {
  * @param {Event} event - Событие клика
  */
 function onChatClick(event) {
-    const chatItem = event.target.closest('.chat-item');
-    if (chatItem) {
-        const username = chatItem.dataset.username;
-        if (username) {
-            connectToChatHandler(username);
-        }
+    // Игнорируем клик по кнопке удаления чата
+    if (event.target.classList.contains('delete-chat-btn')) {
+        return;
     }
+    
+    // Находим ближайший элемент чата
+    const chatItem = event.target.closest('.chat-item');
+    if (!chatItem) return;
+    
+    const username = chatItem.dataset.username;
+    if (!username) return;
+    
+    // Подключаемся к выбранному чату
+    connectToChatHandler(username);
 }
 
 /**
@@ -1242,8 +1262,6 @@ function combineKeys(privateKey, peerPublicKey, p) {
             throw new Error("Вычисление общего ключа вернуло NaN");
         }
         
-        console.log(`Вычислен общий секретный ключ: ${sharedSecret}`);
-        
         // Преобразуем в строку в 16-ричном формате
         try {
             // Пробуем через BigInt для максимальной точности
@@ -1289,7 +1307,6 @@ function initDiffieHellmanExchange(username) {
         // Проверяем, существует ли уже ключ для этого пользователя
         const existingKey = localStorage.getItem(`dh_private_key_${username}`);
         if (existingKey) {
-            console.log(`Приватный ключ для ${username} уже существует, используем его: ${existingKey}`);
             
             // Вычисляем публичный ключ по формуле: A = g^a mod p
             const publicKey = powMod(g, existingKey, p);
@@ -1302,15 +1319,12 @@ function initDiffieHellmanExchange(username) {
         // Генерируем случайное число как приватный ключ (не слишком большое, чтобы избежать проблем с преобразованием)
         const privateKey = Math.floor(Math.random() * 10000) + 100;
         
-        console.log(`Сгенерирован приватный ключ: ${privateKey}`);
-        
         // Вычисляем публичный ключ по формуле: A = g^a mod p
         const publicKey = powMod(g, privateKey, p);
         console.log(`Вычислен публичный ключ: ${publicKey} (privateKey=${privateKey})`);
         
         // Сохраняем приватный ключ в localStorage для текущего пользователя
         localStorage.setItem(`dh_private_key_${username}`, privateKey.toString());
-        console.log(`Сохранен приватный ключ для обмена с ${username}: ${privateKey}`);
         
         // Инициируем обмен ключами, отправляя публичный ключ на сервер
         initKeyExchange(username, publicKey.toString(), (err, success) => {
@@ -1366,6 +1380,16 @@ function checkForCompletedKeyExchange(username) {
                 } else {
                     console.log(`Превышено максимальное число попыток проверки обмена ключами с ${username}`);
                     localStorage.removeItem(attemptKey);
+                    
+                    // Скрываем спиннер загрузки и показываем футер даже в случае ошибки
+                    showKeyExchangeLoader(false);
+                    const chatFooter = document.querySelector('.chat-footer');
+                    if (chatFooter) {
+                        chatFooter.style.display = 'flex';
+                    }
+                    
+                    // Запускаем чат несмотря на ошибку
+                    startChatAfterKeyExchange(username);
                 }
             }, 5000);
             return;
@@ -1407,8 +1431,6 @@ function checkForCompletedKeyExchange(username) {
                 return;
             }
             
-            console.log(`Параметры для вычисления общего ключа: privateKey=${privateKey}, peerPublicKey=${peerPublicKey}, p=${p}, формат: ${isHex ? 'шестнадцатеричный' : 'десятичный'}`);
-            
             // Вычисляем общий секретный ключ по формуле: K = B^a mod p
             try {
                 const sharedSecret = combineKeys(privateKey, peerPublicKey, p);
@@ -1416,12 +1438,32 @@ function checkForCompletedKeyExchange(username) {
                 // Сохраняем общий секретный ключ
                 localStorage.setItem(`dh_shared_key_${username}`, sharedSecret);
                 console.log(`Вычислен и сохранен общий секретный ключ для ${username}: ${sharedSecret}`);
+                
+                // Скрываем спиннер загрузки и показываем футер
+                showKeyExchangeLoader(false);
+                const chatFooter = document.querySelector('.chat-footer');
+                if (chatFooter) {
+                    chatFooter.style.display = 'flex';
+                }
+                
+                // Запускаем чат после успешного обмена ключами
+                startChatAfterKeyExchange(username);
             } catch (error) {
                 console.error(`Ошибка при вычислении общего ключа для ${username}:`, error);
                 // Создаем случайный "резервный" ключ
                 const fallbackKey = Math.floor(Math.random() * 1000000).toString(16);
                 localStorage.setItem(`dh_shared_key_${username}`, fallbackKey);
                 console.log(`Создан резервный общий ключ: ${fallbackKey}`);
+                
+                // Скрываем спиннер загрузки и показываем футер даже в случае ошибки
+                showKeyExchangeLoader(false);
+                const chatFooter = document.querySelector('.chat-footer');
+                if (chatFooter) {
+                    chatFooter.style.display = 'flex';
+                }
+                
+                // Запускаем чат несмотря на ошибку
+                startChatAfterKeyExchange(username);
             }
         } else if (params.status === 1) { // INITIATED
             // Обмен ключами еще не завершен, проверим позже
@@ -1463,7 +1505,6 @@ function checkKeyExchangeStatus(username, callback) {
                 if (existingPrivateKey) {
                     // Используем существующий ключ
                     privateKey = existingPrivateKey;
-                    console.log(`Используем существующий приватный ключ для ${username}: ${privateKey}`);
                 } else {
                     // Получаем параметры p и g и проверяем их формат
                     const p = params.dhP || "";
@@ -1480,11 +1521,9 @@ function checkKeyExchangeStatus(username, callback) {
                     
                     // Генерируем случайное число как приватный ключ
                     privateKey = Math.floor(Math.random() * 10000) + 100;
-                    console.log(`Сгенерирован новый приватный ключ: ${privateKey}`);
                     
                     // Сохраняем приватный ключ в localStorage
                     localStorage.setItem(`dh_private_key_${username}`, privateKey.toString());
-                    console.log(`Сохранен новый приватный ключ для обмена с ${username}: ${privateKey}`);
                 }
                 
                 // Получаем параметры p и g для вычисления публичного ключа
@@ -1523,15 +1562,12 @@ function checkKeyExchangeStatus(username, callback) {
                             return;
                         }
                         
-                        console.log(`Параметры для вычисления общего ключа: privateKey=${privateKey}, peerPublicKey=${peerPublicKey}, p=${p}, формат: ${isHex ? 'шестнадцатеричный' : 'десятичный'}`);
-                        
                         // Вычисляем общий секретный ключ по формуле: K = A^b mod p
                         try {
                             const sharedSecret = combineKeys(privateKey, peerPublicKey, p);
                             
                             // Сохраняем общий секретный ключ
                             localStorage.setItem(`dh_shared_key_${username}`, sharedSecret);
-                            console.log(`Вычислен и сохранен общий секретный ключ для ${username}: ${sharedSecret}`);
                             
                             callback(null, 2); // COMPLETED
                         } catch (error) {
@@ -1713,4 +1749,128 @@ document.addEventListener("DOMContentLoaded", function() {
         }
     });
 });
+
+/**
+ * Показывает или скрывает спиннер загрузки во время обмена ключами
+ * @param {boolean} show - Показать (true) или скрыть (false) спиннер
+ */
+function showKeyExchangeLoader(show) {
+    // Получаем контейнер сообщений
+    const messagesContainer = document.getElementById('chat-messages');
+    if (!messagesContainer) return;
+    
+    // Удаляем существующий спиннер, если он есть
+    const existingLoader = document.getElementById('key-exchange-loader');
+    if (existingLoader) {
+        existingLoader.remove();
+    }
+    
+    // Если нужно показать спиннер
+    if (show) {
+        const loaderElement = document.createElement('div');
+        loaderElement.id = 'key-exchange-loader';
+        loaderElement.className = 'key-exchange-loader';
+        
+        const spinnerElement = document.createElement('div');
+        spinnerElement.className = 'spinner';
+        loaderElement.appendChild(spinnerElement);
+        
+        const messageElement = document.createElement('div');
+        messageElement.className = 'loader-message';
+        messageElement.textContent = 'Выполняется безопасный обмен ключами...';
+        loaderElement.appendChild(messageElement);
+        
+        messagesContainer.appendChild(loaderElement);
+    }
+}
+
+/**
+ * Запускает чат после завершения обмена ключами
+ * @param {string} username - Имя собеседника
+ */
+function startChatAfterKeyExchange(username) {
+    // Если текущий чат отличается от запускаемого, останавливаем его
+    if (currentChat && currentChat !== username) {
+        stopChat();
+    }
+    
+    // Запускаем чат и регистрируем обработчик входящих сообщений
+    startChat(handleIncomingMessage);
+    
+    // Обновляем URL с параметром выбранного чата
+    const urlParams = new URLSearchParams(window.location.search);
+    urlParams.set('chat', username);
+    window.history.replaceState({}, '', `${window.location.pathname}?${urlParams}`);
+    
+    // Разблокируем элементы ввода
+    const messageInput = document.getElementById("message-input");
+    if (messageInput) {
+        messageInput.disabled = false;
+        messageInput.placeholder = "Напишите сообщение...";
+        messageInput.focus(); // Устанавливаем фокус для удобства пользователя
+    }
+    
+    const fileButton = document.getElementById("file-button");
+    if (fileButton) {
+        fileButton.disabled = false;
+    }
+    
+    const disconnectBtn = document.getElementById("disconnect-btn");
+    if (disconnectBtn) {
+        disconnectBtn.style.display = "block";
+    }
+    
+    // Фиксируем текущий чат
+    currentChat = username;
+}
+
+/**
+ * Экспортируемая функция инициализации интерфейса чатов
+ */
+export function setupChatsUI() {
+    // Инициализация интерфейса
+    loadChats();
+    
+    // Привязка обработчиков событий
+    document.getElementById("chat-list").addEventListener("click", onChatClick);
+    document.getElementById("send-button").addEventListener("click", onSendMessage);
+    
+    const messageInput = document.getElementById("message-input");
+    messageInput.addEventListener("keypress", (event) => {
+        if (event.key === "Enter") {
+            onSendMessage();
+        }
+    });
+    
+    // Инициализация компонентов UI
+    initChatCreationModal();
+    initLogoutButton();
+    initDisconnectButton();
+    initFileHandling();
+    
+    // Начальное состояние интерфейса (чат не выбран)
+    const disconnectBtn = document.getElementById("disconnect-btn");
+    if (disconnectBtn) {
+        disconnectBtn.style.display = "none";
+    }
+    
+    const messageInputElement = document.getElementById("message-input");
+    if (messageInputElement) {
+        messageInputElement.disabled = true;
+        messageInputElement.placeholder = "Сначала выберите чат...";
+    }
+    
+    const fileButton = document.getElementById("file-button");
+    if (fileButton) {
+        fileButton.disabled = true;
+    }
+    
+    // Убедимся, что футер скрыт, пока не выбран чат
+    const chatFooter = document.querySelector('.chat-footer');
+    if (chatFooter && !currentChat) {
+        chatFooter.classList.remove('active');
+    }
+    
+    console.log('Чат инициализирован. Текущая дата:', new Date());
+}
 

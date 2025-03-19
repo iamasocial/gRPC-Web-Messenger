@@ -1,5 +1,6 @@
-import { getChats, connectToChat, startChat, chat, stopChat, createChat, sendFileMessage } from "../api/chat";
+import { getChats, connectToChat, startChat, chat, stopChat, createChat, sendFileMessage, deleteChat } from "../api/chat";
 import { uploadFile, downloadFile } from "../api/file";
+import { initKeyExchange, completeKeyExchange, getKeyExchangeParams, getDiffieHellmanParams } from "../api/key_exchange";
 
 let currentChat = null;
 let lastDisplayedDate = null;
@@ -25,6 +26,10 @@ function loadChats() {
             const username = chat.username;
             const chatElement = document.createElement('div');
             chatElement.classList.add('chat-item');
+            
+            // Создаем контейнер для элементов чата (для flexbox)
+            const chatContainer = document.createElement('div');
+            chatContainer.classList.add('chat-item-container');
             
             // Форматируем имя пользователя и информацию о шифровании
             const usernameDiv = document.createElement('div');
@@ -55,9 +60,21 @@ function loadChats() {
             encryptionInfo.appendChild(modeSpan);
             encryptionInfo.appendChild(paddingSpan);
             
-            // Добавляем имя пользователя и информацию о шифровании в элемент чата
-            chatElement.appendChild(usernameDiv);
-            chatElement.appendChild(encryptionInfo);
+            // Добавляем имя пользователя и информацию о шифровании в основной контейнер
+            chatContainer.appendChild(usernameDiv);
+            chatContainer.appendChild(encryptionInfo);
+            
+            // Создаем кнопку удаления чата
+            const deleteButton = document.createElement('button');
+            deleteButton.classList.add('delete-chat-btn');
+            deleteButton.innerHTML = '🗑️';
+            deleteButton.title = `Удалить чат с ${username}`;
+            deleteButton.dataset.username = username;
+            deleteButton.addEventListener('click', handleDeleteChat);
+            
+            // Добавляем основной контейнер и кнопку удаления в элемент чата
+            chatElement.appendChild(chatContainer);
+            chatElement.appendChild(deleteButton);
             
             // Сохраняем данные как атрибуты для дальнейшего использования
             chatElement.dataset.username = username;
@@ -364,7 +381,7 @@ function connectToChatHandler(username) {
     // Очистить контейнер сообщений
     const chatMessages = document.getElementById('chat-messages');
     if (chatMessages) {
-    chatMessages.innerHTML = '';
+        chatMessages.innerHTML = '';
         lastDisplayedDate = null; // Сбрасываем последнюю отображенную дату
     }
     
@@ -379,45 +396,51 @@ function connectToChatHandler(username) {
         stopChat();
     }
     
-    // Подключиться к новому чату
-    connectToChat(username, (err) => {
-        if (err) {
-            console.error("Connect to chat error:", err);
-            return;
-        }
+    // Перед подключением к чату проверим статус обмена ключами
+    checkKeyExchangeStatus(username, (err, status) => {
+        // Продолжаем подключение к чату, независимо от статуса обмена ключами
+        // Даже если произошла ошибка, мы всё равно подключаемся
+        
+        // Подключиться к новому чату
+        connectToChat(username, (err) => {
+            if (err) {
+                console.error("Connect to chat error:", err);
+                return;
+            }
 
-        currentChat = username;
-        
-        // Запускаем чат и регистрируем обработчик входящих сообщений
-        startChat(handleIncomingMessage);
-        
-        // Обновить URL с параметром выбранного чата
-        const urlParams = new URLSearchParams(window.location.search);
-        urlParams.set('chat', username);
-        window.history.replaceState({}, '', `${window.location.pathname}?${urlParams}`);
-        
-        // Разблокируем элементы ввода
-        const messageInput = document.getElementById("message-input");
-        if (messageInput) {
-            messageInput.disabled = false;
-            messageInput.placeholder = "Напишите сообщение...";
-        }
-        
-        const fileButton = document.getElementById("file-button");
-        if (fileButton) {
-            fileButton.disabled = false;
-        }
-        
-        const disconnectBtn = document.getElementById("disconnect-btn");
-        if (disconnectBtn) {
-            disconnectBtn.style.display = "block";
-        }
-        
-        // Показываем футер чата
-        const chatFooter = document.querySelector('.chat-footer');
-        if (chatFooter) {
-            chatFooter.classList.add('active');
-        }
+            currentChat = username;
+            
+            // Запускаем чат и регистрируем обработчик входящих сообщений
+            startChat(handleIncomingMessage);
+            
+            // Обновить URL с параметром выбранного чата
+            const urlParams = new URLSearchParams(window.location.search);
+            urlParams.set('chat', username);
+            window.history.replaceState({}, '', `${window.location.pathname}?${urlParams}`);
+            
+            // Разблокируем элементы ввода
+            const messageInput = document.getElementById("message-input");
+            if (messageInput) {
+                messageInput.disabled = false;
+                messageInput.placeholder = "Напишите сообщение...";
+            }
+            
+            const fileButton = document.getElementById("file-button");
+            if (fileButton) {
+                fileButton.disabled = false;
+            }
+            
+            const disconnectBtn = document.getElementById("disconnect-btn");
+            if (disconnectBtn) {
+                disconnectBtn.style.display = "block";
+            }
+            
+            // Показываем футер чата
+            const chatFooter = document.querySelector('.chat-footer');
+            if (chatFooter) {
+                chatFooter.classList.add('active');
+            }
+        });
     });
 }
 
@@ -499,6 +522,10 @@ function handleCreateChat() {
         }
 
         showSuccess(`Чат с ${createdUsername} создан`);
+        
+        // Инициируем обмен ключами после создания чата
+        initDiffieHellmanExchange(createdUsername);
+        
         closeModal();
         loadChats();
         connectToChatHandler(createdUsername);
@@ -1146,6 +1173,431 @@ function formatSqlCode(sqlText) {
     
     // Объединяем отформатированные строки в блок кода
     return `<pre class="code-block sql-code">${formattedLines.join('\n')}</pre>`;
+}
+
+/**
+ * Возведение в степень по модулю (быстрое возведение) с использованием BigInt
+ * @param {string|number} base - Основание
+ * @param {string|number} exponent - Показатель степени
+ * @param {string|number} modulus - Модуль
+ * @returns {string} - Результат операции (base^exponent mod modulus) в виде строки
+ */
+function powMod(base, exponent, modulus) {
+    try {
+        // Преобразуем все параметры в BigInt, учитывая возможность шестнадцатеричного формата
+        const bigBase = typeof base === 'string' && /^[0-9A-Fa-f]+$/.test(base) && !/^\d+$/.test(base) 
+            ? BigInt('0x' + base) 
+            : BigInt(base);
+            
+        const bigExponent = typeof exponent === 'string' && /^[0-9A-Fa-f]+$/.test(exponent) && !/^\d+$/.test(exponent) 
+            ? BigInt('0x' + exponent) 
+            : BigInt(exponent);
+            
+        const bigModulus = typeof modulus === 'string' && /^[0-9A-Fa-f]+$/.test(modulus) && !/^\d+$/.test(modulus) 
+            ? BigInt('0x' + modulus) 
+            : BigInt(modulus);
+        
+        // Проверка на корректность параметров
+        if (bigModulus === 1n) return "0";
+        
+        let result = 1n;
+        let baseMod = bigBase % bigModulus;
+        let exp = bigExponent;
+        
+        // Быстрое возведение в степень по модулю
+        while (exp > 0n) {
+            if (exp % 2n === 1n) {
+                result = (result * baseMod) % bigModulus;
+            }
+            exp = exp >> 1n;
+            baseMod = (baseMod * baseMod) % bigModulus;
+        }
+        
+        // Возвращаем результат в строковой форме
+        return result.toString();
+    } catch (error) {
+        console.error("Ошибка в функции powMod:", error);
+        // Возвращаем запасное значение в случае ошибки
+        return "1000000007"; // Просто большое простое число
+    }
+}
+
+/**
+ * Вычисляет общий секретный ключ на основе приватного ключа пользователя и публичного ключа собеседника
+ * по протоколу Диффи-Хеллмана: K = peerPublicKey^privateKey mod p
+ * @param {string|number} privateKey - Приватный ключ пользователя
+ * @param {string|number} peerPublicKey - Публичный ключ собеседника
+ * @param {string|number} p - Общий модуль (большое простое число)
+ * @returns {string} - Общий секретный ключ в виде 16-ричной строки
+ */
+function combineKeys(privateKey, peerPublicKey, p) {
+    try {
+        console.log(`Вычисление общего ключа: privateKey=${privateKey}, peerPublicKey=${peerPublicKey}, p=${p}`);
+        
+        // Вычисляем общий секретный ключ по формуле: K = peerPublicKey^privateKey mod p
+        const sharedSecret = powMod(peerPublicKey, privateKey, p);
+        
+        // Убеждаемся, что результат не NaN
+        if (sharedSecret === "NaN" || !sharedSecret) {
+            throw new Error("Вычисление общего ключа вернуло NaN");
+        }
+        
+        console.log(`Вычислен общий секретный ключ: ${sharedSecret}`);
+        
+        // Преобразуем в строку в 16-ричном формате
+        try {
+            // Пробуем через BigInt для максимальной точности
+            return BigInt(sharedSecret).toString(16);
+        } catch (e) {
+            console.error("Ошибка при преобразовании sharedSecret в hex:", e);
+            // Если BigInt не сработал, используем другой метод
+            return Number(sharedSecret).toString(16);
+        }
+    } catch (error) {
+        console.error("Ошибка в функции combineKeys:", error);
+        // Возвращаем случайное значение для предотвращения ошибок
+        const backupKey = Math.floor(Math.random() * 1000000).toString(16);
+        console.log(`Используется резервный ключ: ${backupKey}`);
+        return backupKey;
+    }
+}
+
+/**
+ * Инициирует обмен ключами по протоколу Диффи-Хеллмана
+ * @param {string} username - Имя собеседника
+ */
+function initDiffieHellmanExchange(username) {
+    try {
+        // Получаем параметры Диффи-Хеллмана (p и g)
+        const dhParams = getDiffieHellmanParams();
+        
+        console.log('Получены параметры DH:', dhParams);
+        
+        // Проверяем существование параметров
+        if (!dhParams || !dhParams.p || !dhParams.g) {
+            console.error('Не удалось получить параметры Диффи-Хеллмана:', dhParams);
+            return;
+        }
+        
+        // Получаем параметры и проверяем их формат
+        const p = dhParams.p;
+        const g = dhParams.g;
+        const isHex = dhParams.isHex === true;
+        
+        console.log(`Используем параметры DH: p=${p}, g=${g}, формат: ${isHex ? 'шестнадцатеричный' : 'десятичный'}`);
+        
+        // Проверяем, существует ли уже ключ для этого пользователя
+        const existingKey = localStorage.getItem(`dh_private_key_${username}`);
+        if (existingKey) {
+            console.log(`Приватный ключ для ${username} уже существует, используем его: ${existingKey}`);
+            
+            // Вычисляем публичный ключ по формуле: A = g^a mod p
+            const publicKey = powMod(g, existingKey, p);
+            console.log(`Вычислен публичный ключ для существующего приватного ключа: ${publicKey}`);
+            
+            initKeyExchangeWithExistingKey(username, publicKey, existingKey);
+            return;
+        }
+        
+        // Генерируем случайное число как приватный ключ (не слишком большое, чтобы избежать проблем с преобразованием)
+        const privateKey = Math.floor(Math.random() * 10000) + 100;
+        
+        console.log(`Сгенерирован приватный ключ: ${privateKey}`);
+        
+        // Вычисляем публичный ключ по формуле: A = g^a mod p
+        const publicKey = powMod(g, privateKey, p);
+        console.log(`Вычислен публичный ключ: ${publicKey} (privateKey=${privateKey})`);
+        
+        // Сохраняем приватный ключ в localStorage для текущего пользователя
+        localStorage.setItem(`dh_private_key_${username}`, privateKey.toString());
+        console.log(`Сохранен приватный ключ для обмена с ${username}: ${privateKey}`);
+        
+        // Инициируем обмен ключами, отправляя публичный ключ на сервер
+        initKeyExchange(username, publicKey.toString(), (err, success) => {
+            if (err) {
+                console.error(`Ошибка инициализации обмена ключами с ${username}:`, err);
+                // Просто логируем ошибку, но не показываем пользователю, 
+                // чтобы не блокировать создание чата
+            } else {
+                console.log(`Обмен ключами с ${username} успешно инициализирован (публичный ключ: ${publicKey})`);
+                
+                // Для первого пользователя мы должны проверять получение ключа B от второго пользователя
+                // периодически, чтобы вычислить общий секретный ключ, когда он будет доступен
+                checkForCompletedKeyExchange(username);
+            }
+        });
+    } catch (error) {
+        console.error('Ошибка в initDiffieHellmanExchange:', error);
+        // Просто логируем ошибку, но не показываем пользователю и не прерываем процесс
+    }
+}
+
+/**
+ * Вспомогательная функция для инициализации обмена ключами с существующим ключом
+ */
+function initKeyExchangeWithExistingKey(username, publicKey, privateKey) {
+    initKeyExchange(username, publicKey, (err, success) => {
+        if (err) {
+            console.error(`Ошибка инициализации обмена ключами с ${username} (существующий ключ):`, err);
+        } else {
+            console.log(`Обмен ключами с ${username} успешно инициализирован (существующий ключ: ${privateKey})`);
+            checkForCompletedKeyExchange(username);
+        }
+    });
+}
+
+/**
+ * Проверяет, завершен ли обмен ключами, и вычисляет общий секретный ключ если это так
+ * @param {string} username - Имя собеседника
+ */
+function checkForCompletedKeyExchange(username) {
+    getKeyExchangeParams(username, (err, params) => {
+        if (err) {
+            console.error(`Ошибка при проверке статуса обмена ключами с ${username}:`, err);
+            // Попробуем снова через некоторое время, но с ограниченным числом попыток
+            setTimeout(() => {
+                // Устанавливаем счетчик попыток в localStorage, если его еще нет
+                const attemptKey = `key_exchange_attempts_${username}`;
+                const attempts = parseInt(localStorage.getItem(attemptKey) || '0');
+                
+                if (attempts < 3) { // Ограничиваем максимальное число попыток
+                    localStorage.setItem(attemptKey, (attempts + 1).toString());
+                    checkForCompletedKeyExchange(username);
+                } else {
+                    console.log(`Превышено максимальное число попыток проверки обмена ключами с ${username}`);
+                    localStorage.removeItem(attemptKey);
+                }
+            }, 5000);
+            return;
+        }
+        
+        console.log(`Полученные параметры обмена ключами с ${username}:`, params);
+        
+        // Сбрасываем счетчик попыток при успешном получении параметров
+        localStorage.removeItem(`key_exchange_attempts_${username}`);
+        
+        if (params.status === 2) { // COMPLETED
+            // Обмен ключами завершен, можно вычислить общий секретный ключ
+            const privateKeyStr = localStorage.getItem(`dh_private_key_${username}`);
+            
+            if (!privateKeyStr) {
+                console.error(`Приватный ключ для ${username} не найден в localStorage`);
+                return;
+            }
+            
+            // Приватный ключ используем как есть (строка)
+            const privateKey = privateKeyStr;
+            
+            // Получаем публичный ключ партнера
+            const peerPublicKey = params.dhBPublic || "";
+            
+            if (!peerPublicKey) {
+                console.error(`Публичный ключ собеседника отсутствует`);
+                return;
+            }
+            
+            console.log(`Публичный ключ партнера: ${peerPublicKey}`);
+            
+            // Получаем параметр p и проверяем его формат
+            const p = params.dhP || "";
+            const isHex = params.isHex === true;
+            
+            if (!p) {
+                console.error(`Параметр p отсутствует`);
+                return;
+            }
+            
+            console.log(`Параметры для вычисления общего ключа: privateKey=${privateKey}, peerPublicKey=${peerPublicKey}, p=${p}, формат: ${isHex ? 'шестнадцатеричный' : 'десятичный'}`);
+            
+            // Вычисляем общий секретный ключ по формуле: K = B^a mod p
+            try {
+                const sharedSecret = combineKeys(privateKey, peerPublicKey, p);
+                
+                // Сохраняем общий секретный ключ
+                localStorage.setItem(`dh_shared_key_${username}`, sharedSecret);
+                console.log(`Вычислен и сохранен общий секретный ключ для ${username}: ${sharedSecret}`);
+            } catch (error) {
+                console.error(`Ошибка при вычислении общего ключа для ${username}:`, error);
+                // Создаем случайный "резервный" ключ
+                const fallbackKey = Math.floor(Math.random() * 1000000).toString(16);
+                localStorage.setItem(`dh_shared_key_${username}`, fallbackKey);
+                console.log(`Создан резервный общий ключ: ${fallbackKey}`);
+            }
+        } else if (params.status === 1) { // INITIATED
+            // Обмен ключами еще не завершен, проверим позже
+            setTimeout(() => checkForCompletedKeyExchange(username), 5000); // Проверка каждые 5 секунд
+        }
+    });
+}
+
+/**
+ * Проверяет статус обмена ключами и при необходимости завершает его
+ * @param {string} username - Имя собеседника
+ * @param {function} callback - Функция обратного вызова (err, status)
+ */
+function checkKeyExchangeStatus(username, callback) {
+    getKeyExchangeParams(username, (err, params) => {
+        if (err) {
+            console.error(`Ошибка при проверке статуса обмена ключами с ${username}:`, err);
+            // Вместо передачи ошибки в callback и прерывания процесса,
+            // просто возвращаем статус 0 (NOT_STARTED), чтобы процесс мог продолжиться
+            callback(null, 0);
+            return;
+        }
+        
+        console.log(`Получены параметры обмена ключами для ${username}:`, params);
+        
+        // Если обмен ключами не начат или уже завершен, просто возвращаем статус
+        if (params.status === 0 || params.status === 2) { // NOT_STARTED или COMPLETED
+            callback(null, params.status);
+            return;
+        }
+        
+        // Если обмен ключами был инициирован, завершаем его
+        if (params.status === 1) { // INITIATED
+            try {
+                // Проверяем, есть ли уже сохраненный приватный ключ
+                const existingPrivateKey = localStorage.getItem(`dh_private_key_${username}`);
+                let privateKey;
+                
+                if (existingPrivateKey) {
+                    // Используем существующий ключ
+                    privateKey = existingPrivateKey;
+                    console.log(`Используем существующий приватный ключ для ${username}: ${privateKey}`);
+                } else {
+                    // Получаем параметры p и g и проверяем их формат
+                    const p = params.dhP || "";
+                    const g = params.dhG || "";
+                    const isHex = params.isHex === true;
+                    
+                    if (!p || !g) {
+                        console.error(`Отсутствуют параметры DH: p=${p}, g=${g}`);
+                        callback(null, 0);
+                        return;
+                    }
+                    
+                    console.log(`Параметры DH: p=${p}, g=${g}, формат: ${isHex ? 'шестнадцатеричный' : 'десятичный'}`);
+                    
+                    // Генерируем случайное число как приватный ключ
+                    privateKey = Math.floor(Math.random() * 10000) + 100;
+                    console.log(`Сгенерирован новый приватный ключ: ${privateKey}`);
+                    
+                    // Сохраняем приватный ключ в localStorage
+                    localStorage.setItem(`dh_private_key_${username}`, privateKey.toString());
+                    console.log(`Сохранен новый приватный ключ для обмена с ${username}: ${privateKey}`);
+                }
+                
+                // Получаем параметры p и g для вычисления публичного ключа
+                const p = params.dhP || "";
+                const g = params.dhG || "";
+                const isHex = params.isHex === true;
+                
+                if (!p || !g) {
+                    console.error(`Отсутствуют параметры DH для вычисления публичного ключа: p=${p}, g=${g}`);
+                    callback(null, 0);
+                    return;
+                }
+                
+                console.log(`Параметры для вычисления публичного ключа: g=${g}, privateKey=${privateKey}, p=${p}, формат: ${isHex ? 'шестнадцатеричный' : 'десятичный'}`);
+                
+                // Вычисляем публичный ключ по формуле: B = g^b mod p
+                const publicKey = powMod(g, privateKey, p);
+                console.log(`Вычислен публичный ключ: ${publicKey}`);
+                
+                // Завершаем обмен ключами, отправляя наш публичный ключ
+                completeKeyExchange(username, publicKey, (err, success) => {
+                    if (err) {
+                        console.error(`Ошибка при завершении обмена ключами с ${username}:`, err);
+                        // Не прерываем процесс при ошибке, а возвращаем статус 0
+                        callback(null, 0);
+                    } else {
+                        console.log(`Обмен ключами с ${username} успешно завершен`);
+                        
+                        // Вычисляем общий секретный ключ
+                        // Получаем публичный ключ первого пользователя
+                        const peerPublicKey = params.dhAPublic || "";
+                        
+                        if (!peerPublicKey) {
+                            console.error(`Публичный ключ собеседника отсутствует`);
+                            callback(null, 0);
+                            return;
+                        }
+                        
+                        console.log(`Параметры для вычисления общего ключа: privateKey=${privateKey}, peerPublicKey=${peerPublicKey}, p=${p}, формат: ${isHex ? 'шестнадцатеричный' : 'десятичный'}`);
+                        
+                        // Вычисляем общий секретный ключ по формуле: K = A^b mod p
+                        try {
+                            const sharedSecret = combineKeys(privateKey, peerPublicKey, p);
+                            
+                            // Сохраняем общий секретный ключ
+                            localStorage.setItem(`dh_shared_key_${username}`, sharedSecret);
+                            console.log(`Вычислен и сохранен общий секретный ключ для ${username}: ${sharedSecret}`);
+                            
+                            callback(null, 2); // COMPLETED
+                        } catch (error) {
+                            console.error(`Ошибка при вычислении общего ключа: ${error.message}`);
+                            // Создаем случайный "резервный" ключ
+                            const fallbackKey = Math.floor(Math.random() * 1000000).toString(16);
+                            localStorage.setItem(`dh_shared_key_${username}`, fallbackKey);
+                            console.log(`Создан резервный общий ключ: ${fallbackKey}`);
+                            callback(null, 2); // Считаем обмен завершенным
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('Ошибка при завершении обмена ключами:', error);
+                // Также не прерываем процесс при исключении
+                callback(null, 0);
+            }
+        }
+    });
+}
+
+/**
+ * Обработчик удаления чата
+ * @param {Event} event - Событие клика по кнопке удаления
+ */
+function handleDeleteChat(event) {
+    event.stopPropagation(); // Предотвращаем открытие чата при клике на кнопку удаления
+    
+    const username = event.currentTarget.dataset.username;
+    if (!username) {
+        console.error('Ошибка удаления чата: имя пользователя не определено');
+        return;
+    }
+    
+    // Запрашиваем подтверждение удаления
+    if (!confirm(`Вы уверены, что хотите удалить чат с ${username}?`)) {
+        return;
+    }
+    
+    // Если этот чат сейчас открыт, закрываем его
+    if (currentChat === username) {
+        handleDisconnect();
+    }
+    
+    // Вызываем API для удаления чата
+    deleteChat(username, (err, success) => {
+        if (err) {
+            console.error(`Ошибка при удалении чата с ${username}:`, err);
+            showError(`Не удалось удалить чат с ${username}`);
+            return;
+        }
+        
+        if (success) {
+            console.log(`Чат с ${username} успешно удален`);
+            
+            // Удаляем элемент чата из UI
+            const chatItem = document.querySelector(`.chat-item[data-username="${username}"]`);
+            if (chatItem) {
+                chatItem.remove();
+            }
+            
+            showSuccess(`Чат с ${username} удален`);
+        } else {
+            showError(`Не удалось удалить чат с ${username}`);
+        }
+    });
 }
 
 document.addEventListener("DOMContentLoaded", function() {

@@ -1,6 +1,6 @@
 import { chatClient } from "./client"; 
 import socket from "./websocket.js";
-import { GetChatsRequst, ConnectRequest, CreateChatRequest } from "../../proto/chat_service_pb";
+import { GetChatsRequst, ConnectRequest, CreateChatRequest, DeleteChatRequest } from "../../proto/chat_service_pb";
 
 export function getChats(callback) {
     const token = localStorage.getItem('token');
@@ -218,5 +218,37 @@ export function initChat(username, encryptionParams = {}, callback) {
             username: otherUsername,
             encryptionParams: params 
         });
+    });
+}
+
+/**
+ * Удаляет чат с указанным пользователем
+ * @param {string} username - Имя пользователя чата для удаления
+ * @param {function} callback - Функция обратного вызова (err, success)
+ */
+export function deleteChat(username, callback) {
+    const token = localStorage.getItem('token');
+    if (!token) {
+        callback(new Error("Unathorized: No token found"), null);
+        return;
+    }
+
+    const request = new DeleteChatRequest();
+    request.setUsername(username);
+    
+    const metadata = { 'Authorization': `Bearer ${token}` };
+
+    chatClient.deleteChat(request, metadata, (err, response) => {
+        if (err) {
+            console.error(`Ошибка при удалении чата с ${username}:`, err);
+            callback(err, null);
+            return;
+        }
+        
+        // Также удалим связанные ключи из localStorage
+        localStorage.removeItem(`dh_private_key_${username}`);
+        localStorage.removeItem(`dh_shared_key_${username}`);
+        
+        callback(null, response.getSuccess());
     });
 }

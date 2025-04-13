@@ -316,20 +316,20 @@ function handleIncomingMessage(message) {
     } else {
         // Обычное текстовое сообщение
         const formattedContent = formatTextWithLinks(content);
-        
-        // Проверяем, содержит ли сообщение код
-        const containsCode = formattedContent.includes('code-block');
-        
-        // Если сообщение содержит код, добавляем класс message-with-code
-        if (containsCode) {
-            messageDiv.classList.add('message-with-code');
-        }
-        
-        messageDiv.innerHTML = `
-<div class="message-content">
-    <div class="message-text">${formattedContent}</div>
-    <div class="message-time">${timePart}</div>
-</div>`;
+            
+            // Проверяем, содержит ли сообщение код
+            const containsCode = formattedContent.includes('code-block');
+            
+            // Если сообщение содержит код, добавляем класс message-with-code
+            if (containsCode) {
+                messageDiv.classList.add('message-with-code');
+            }
+            
+            messageDiv.innerHTML = `
+                <div class="message-content">
+                    <div class="message-text">${formattedContent}</div>
+                    <div class="message-time">${timePart}</div>
+                </div>`;
     }
     
     chatMessages.appendChild(messageDiv);
@@ -491,9 +491,9 @@ function onSendMessage() {
             if (err) {
                 console.error('Ошибка при отправке сообщения:', err);
                 showErrorToast('Ошибка при отправке сообщения');
-        return;
-    }
-
+                return;
+            }
+            
             // Очистка поля ввода после успешной отправки
             messageInput.value = '';
         });
@@ -521,7 +521,7 @@ function handleCreateChat() {
         showError("Имя пользователя не может быть пустым");
         return;
     }
-
+    
     // Получаем выбранные параметры шифрования
     const algorithm = getSelectedOption("algorithm-select");
     const mode = getSelectedOption("mode-select");
@@ -540,14 +540,14 @@ function handleCreateChat() {
             showError("Ошибка при создании чата");
             return;
         }
-
-        showSuccess(`Чат с ${createdUsername} создан`);
         
+        showSuccess(`Чат с ${createdUsername} создан`);
+            
         // Инициируем обмен ключами после создания чата
         initDiffieHellmanExchange(createdUsername);
-        
+            
         closeModal();
-        loadChats();
+            loadChats();
         connectToChatHandler(createdUsername);
     });
 }
@@ -1849,28 +1849,28 @@ export function setupChatsUI() {
     initFileHandling();
     
     // Начальное состояние интерфейса (чат не выбран)
-    const disconnectBtn = document.getElementById("disconnect-btn");
-    if (disconnectBtn) {
-        disconnectBtn.style.display = "none";
-    }
-    
+        const disconnectBtn = document.getElementById("disconnect-btn");
+        if (disconnectBtn) {
+            disconnectBtn.style.display = "none";
+        }
+        
     const messageInputElement = document.getElementById("message-input");
     if (messageInputElement) {
         messageInputElement.disabled = true;
         messageInputElement.placeholder = "Сначала выберите чат...";
-    }
-    
-    const fileButton = document.getElementById("file-button");
-    if (fileButton) {
-        fileButton.disabled = true;
-    }
-    
+        }
+        
+        const fileButton = document.getElementById("file-button");
+        if (fileButton) {
+            fileButton.disabled = true;
+        }
+        
     // Убедимся, что футер скрыт, пока не выбран чат
-    const chatFooter = document.querySelector('.chat-footer');
+        const chatFooter = document.querySelector('.chat-footer');
     if (chatFooter && !currentChat) {
-        chatFooter.classList.remove('active');
-    }
-    
+            chatFooter.classList.remove('active');
+        }
+        
     console.log('Чат инициализирован. Текущая дата:', new Date());
 }
 
